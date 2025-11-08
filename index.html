@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Världskarta - Donationer</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+        <div class="map-wrapper">
+            <div class="map-container" id="mapContainer">
+                <!-- SVG map will be loaded here via JavaScript -->
+                <!-- This comment ensures the div is not empty for CMS -->
+            </div>
+            <canvas id="pointCanvas"></canvas>
+        </div>
+        
+        <!-- Donation input panel -->
+        <div class="donation-panel">
+            <div class="donation-controls">
+                <div class="amount-display">
+                    <span>Nuvarande belopp: </span>
+                    <span id="currentAmount">0</span> kr
+                </div>
+                <div class="donation-input-group">
+                    <input type="number" id="donationAmount" placeholder="Belopp (kr)" min="1" value="50">
+                    <button id="submitDonation" class="donation-button">Skicka donation</button>
+                </div>
+                <div class="mock-toggle">
+                    <label>
+                        <input type="checkbox" id="useMockCheckbox" checked>
+                        <span>Använd mock-data (test)</span>
+                    </label>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Settings panel (hidden by default, can be shown for testing) -->
+        <div class="settings-panel" id="settingsPanel" style="display: none;">
+            <h3>Inställningar</h3>
+            <div class="setting-item">
+                <label>Pris per punkt (kr):</label>
+                <input type="number" id="pricePerPoint" value="50" min="1">
+            </div>
+            <div class="setting-item">
+                <label>Procent i Sydamerika/Afrika (%):</label>
+                <input type="number" id="regionPercentage" value="40" min="0" max="100">
+            </div>
+            <div class="setting-item">
+                <label>API uppdatering (sekunder):</label>
+                <input type="number" id="updateInterval" value="10" min="1">
+            </div>
+            <div class="setting-item">
+                <label>Minsta avstånd mellan punkter (px):</label>
+                <input type="number" id="minDistance" value="20" min="1">
+            </div>
+        </div>
+    </div>  
+    
+    <script src="script.js"></script>
+</body>
+</html>
+
