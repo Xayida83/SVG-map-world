@@ -47,7 +47,7 @@ body {
 }
 
 /* Point styles */
-.point {
+/*.point {
     position: absolute;
     width: 2px;
     height: 2px;
@@ -60,6 +60,27 @@ body {
     filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.7));
     animation: pulse-glow 2.5s infinite ease-in-out;
     animation-duration: 2.5s; /* Default, will be overridden by inline styles */
+    /*animation-delay: 0s; /* Default, will be overridden by inline styles */
+    /*transform-origin: center;
+    z-index: 10;
+    pointer-events: none;
+    /* Ensure content is present for CMS */
+    /*overflow: hidden;
+    text-indent: -9999px; /* Hide text content */
+/*}*/
+
+.point {
+    position: absolute;
+    width: 2px;
+    height: 2px;
+    border-radius: 50%;
+    background-color: #fffef5;
+    /* Subtil glöd - mindre blur */
+    box-shadow: 0 0 1px rgba(255, 255, 250, 0.9);
+    mix-blend-mode: screen;
+    /* Ta bort filter: drop-shadow för mindre blur */
+    animation: pulse-glow 2.5s infinite ease-in-out;
+    animation-duration: 2.5s; /* Default, will be overridden by inline styles */
     animation-delay: 0s; /* Default, will be overridden by inline styles */
     transform-origin: center;
     z-index: 10;
@@ -68,6 +89,18 @@ body {
     overflow: hidden;
     text-indent: -9999px; /* Hide text content */
 }
+
+/*.point.new-donation {
+    width: 2px;
+    height: 2px;
+    background-color: #ffdf80;
+    /* Subtil glöd för nya donationer */
+    /*box-shadow: 0 0 2px rgba(255, 210, 90, 0.8);
+    mix-blend-mode: screen;
+    animation: pulse-glow-new 1.2s infinite ease-in-out;
+    animation-duration: 1.2s; /* Default, will be overridden by inline styles */
+    /*animation-delay: 0s; /* Default, will be overridden by inline styles */
+/*}*/
 
 .point.new-donation {
     width: 2px;

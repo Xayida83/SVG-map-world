@@ -93,6 +93,7 @@ document.addEventListener("DOMContentLoaded", () => {
   Object.assign(window, {
     fetchDonationData,
     addTestDonation,
+    testNewPoints, // Ny funktion
     setMockMode: (on) => { MOCK_MODE = !!on; console.log("MOCK_MODE:", MOCK_MODE); },
     setAmount: (n) => {
       previousAmount = currentAmount;
@@ -100,7 +101,7 @@ document.addEventListener("DOMContentLoaded", () => {
       updatePoints();
       console.log("Current amount set to", currentAmount);
     },
-    drawCircleBoundary // Exponera för konsol-testning
+    drawCircleBoundary
   });
 });
 
@@ -327,10 +328,49 @@ function startAutoUpdate() {
 }
 
 function addTestDonation(amount) {
+  const oldAmount = currentAmount;
   previousAmount = currentAmount;
   currentAmount += Number(amount) || 0;
-  console.log(`[TEST DONATION] +${amount} -> ${currentAmount}`);
+  
+  const pointsBefore = points.length;
+  const newPointsExpected = Math.floor(Number(amount) / CONFIG.pricePerPoint);
+  
+  console.log(`[TEST DONATION] +${amount} kr`);
+  console.log(`  Belopp: ${oldAmount} -> ${currentAmount}`);
+  console.log(`  Förväntade nya prickar: ${newPointsExpected}`);
+  console.log(`  Prickar innan: ${pointsBefore}`);
+  
   updatePoints();
+  
+  const pointsAfter = points.length;
+  const pointsAdded = pointsAfter - pointsBefore;
+  const newPoints = points.filter(p => p.isNew);
+  
+  console.log(`  Prickar efter: ${pointsAfter}`);
+  console.log(`  Prickar tillagda: ${pointsAdded}`);
+  console.log(`  Nya prickar (isNew): ${newPoints.length}`);
+  
+  if (pointsAdded === 0 && newPointsExpected > 0) {
+    console.warn("  ⚠️ Inga prickar kunde placeras! Möjliga orsaker:");
+    console.warn("     - Cirkelgränsen är för liten");
+    console.warn("     - Inga länder hittades");
+    console.warn("     - Alla försök misslyckades (för många prickar redan?)");
+  }
+}
+
+// Förbättrad testfunktion med bättre feedback
+function testNewPoints(count = 3) {
+  const amount = count * CONFIG.pricePerPoint;
+  console.log(`[TEST] Lägger till ${count} nya prickar (${amount} kr)...`);
+  addTestDonation(amount);
+  
+  setTimeout(() => {
+    const newPoints = points.filter(p => p.isNew);
+    console.log(`[TEST] Nya prickar skapade: ${newPoints.length} av ${count} förväntade`);
+    if (newPoints.length < count) {
+      console.warn(`[TEST] ⚠️ Endast ${newPoints.length} av ${count} prickar kunde placeras`);
+    }
+  }, 100);
 }
 
 // =======================
