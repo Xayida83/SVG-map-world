@@ -351,7 +351,7 @@ function addTestDonation(amount) {
   console.log(`  Nya prickar (isNew): ${newPoints.length}`);
   
   if (pointsAdded === 0 && newPointsExpected > 0) {
-    console.warn("  ⚠️ Inga prickar kunde placeras! Möjliga orsaker:");
+    console.warn("  - Inga prickar kunde placeras! Möjliga orsaker:");
     console.warn("     - Cirkelgränsen är för liten");
     console.warn("     - Inga länder hittades");
     console.warn("     - Alla försök misslyckades (för många prickar redan?)");
