@@ -1,3 +1,4 @@
+// addTestDonation(150)
 // =======================
 // Konfiguration
 // =======================
@@ -15,7 +16,13 @@ const CONFIG = {
     centerX: 0.5,      // 0-1, relativt till kartans bredd (0.5 = mitt)
     centerY: 0.67,     // 0-1, relativt till kartans höjd (0.5 = mitt)
     radius: 0.5,       // 0-1, relativt till kartans minsta dimension
-    showVisual: false   // visa cirkeln på canvas
+    showVisual: true   // visa cirkeln på canvas
+  },
+  // Kartfärger
+  mapColors: {
+    fill: "#2a2a2a",           // Landfärg
+    stroke: "#beb8b8",      // Kantfärg
+    strokeWidth: "0.5"      // Kantbredd
   }
 };
 
@@ -283,9 +290,9 @@ function setupSVGAttributes(svg) {
 function styleMapPaths(svg) {
   const paths = svg.querySelectorAll("path");
   paths.forEach(path => {
-    path.setAttribute("fill", "#000");
-    path.setAttribute("stroke", "#beb8b8");
-    path.setAttribute("stroke-width", "0.5");
+    path.setAttribute("fill", CONFIG.mapColors.fill);
+    path.setAttribute("stroke", CONFIG.mapColors.stroke);
+    path.setAttribute("stroke-width", CONFIG.mapColors.strokeWidth);
   });
 }
 

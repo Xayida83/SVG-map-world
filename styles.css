@@ -9,8 +9,27 @@ body {
     background-color: #1a1a1a;
     color: #fff;
 }
+
+/* =======================
+   CSS Variabler för prickar
+   ======================= */
+:root {
+    /* Vanliga prickar */
+    --point-color: #fffef5;
+    --point-shadow: 0 0 1px rgba(255, 255, 250, 0.9),
+                0 0 3px 2px rgba(255, 255, 240, 0.25);
+    --point-blend-mode: screen;
+    
+    /* Nya donationer */
+    --point-new-color: #ffdf80;
+    --point-new-shadow: 0 0 8px 3px rgba(255, 210, 90, 0.75),
+                       0 0 12px 8px rgba(255, 210, 90, 0.35);
+    --point-new-blend-mode: screen;
+}
 .container {
     position: relative;
+    height: 110vh;
+    background: #464646;
 }
 
 .map-wrapper {
@@ -18,7 +37,7 @@ body {
     width: 100%;
     height: 100vh;
     overflow: hidden;
-    background-color: #2a2a2a;
+    background-color: #464646;
 }
 
 .map-container {
@@ -46,70 +65,30 @@ body {
     /* Opacity ändras dynamiskt när cirkelgräns är aktiverad */
 }
 
-/* Point styles */
-/*.point {
-    position: absolute;
-    width: 2px;
-    height: 2px;
-    border-radius: 50%;
-    background-color: #fffef5;
-    box-shadow: 
-        0 0 2px 1px rgba(255, 255, 250, 0.6),
-        0 0 3px 2px rgba(255, 255, 240, 0.25);
-    mix-blend-mode: screen;
-    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.7));
-    animation: pulse-glow 2.5s infinite ease-in-out;
-    animation-duration: 2.5s; /* Default, will be overridden by inline styles */
-    /*animation-delay: 0s; /* Default, will be overridden by inline styles */
-    /*transform-origin: center;
-    z-index: 10;
-    pointer-events: none;
-    /* Ensure content is present for CMS */
-    /*overflow: hidden;
-    text-indent: -9999px; /* Hide text content */
-/*}*/
-
 .point {
     position: absolute;
     width: 2px;
     height: 2px;
     border-radius: 50%;
-    background-color: #fffef5;
-    /* Subtil glöd - mindre blur */
-    box-shadow: 0 0 1px rgba(255, 255, 250, 0.9);
-    mix-blend-mode: screen;
-    /* Ta bort filter: drop-shadow för mindre blur */
+    background-color: var(--point-color);
+    box-shadow: var(--point-shadow);
+    mix-blend-mode: var(--point-blend-mode);
     animation: pulse-glow 2.5s infinite ease-in-out;
     animation-duration: 2.5s; /* Default, will be overridden by inline styles */
     animation-delay: 0s; /* Default, will be overridden by inline styles */
     transform-origin: center;
     z-index: 10;
     pointer-events: none;
-    /* Ensure content is present for CMS */
     overflow: hidden;
-    text-indent: -9999px; /* Hide text content */
+    text-indent: -9999px; 
 }
-
-/*.point.new-donation {
-    width: 2px;
-    height: 2px;
-    background-color: #ffdf80;
-    /* Subtil glöd för nya donationer */
-    /*box-shadow: 0 0 2px rgba(255, 210, 90, 0.8);
-    mix-blend-mode: screen;
-    animation: pulse-glow-new 1.2s infinite ease-in-out;
-    animation-duration: 1.2s; /* Default, will be overridden by inline styles */
-    /*animation-delay: 0s; /* Default, will be overridden by inline styles */
-/*}*/
 
 .point.new-donation {
     width: 2px;
     height: 2px;
-    background-color: #ffdf80;
-    box-shadow: 
-        0 0 8px 3px rgba(255, 210, 90, 0.75),
-        0 0 12px 8px rgba(255, 210, 90, 0.35);
-    mix-blend-mode: screen;
+    background-color: var(--point-new-color);
+    box-shadow: var(--point-new-shadow);
+    mix-blend-mode: var(--point-new-blend-mode);
     animation: pulse-glow-new 1.2s infinite ease-in-out;
     animation-duration: 1.2s; /* Default, will be overridden by inline styles */
     animation-delay: 0s; /* Default, will be overridden by inline styles */
@@ -151,159 +130,6 @@ body {
     }
 }
 
-/* Donation panel */
-/*.donation-panel {
-    background-color: rgba(0, 0, 0, 0.9);
-    padding: 20px;
-    border-top: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.donation-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    max-width: 600px;
-    margin: 0 auto;
-}
-
-.amount-display {
-    text-align: center;
-    padding: 10px;
-    background-color: rgba(255, 255, 255, 0.1);
-    border-radius: 4px;
-    font-size: 14px;
-}
-
-.amount-display span:last-child {
-    font-weight: bold;
-    color: #f7e4ab;
-    font-size: 16px;
-}
-
-.donation-input-group {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
-.donation-input-group input {
-    flex: 1;
-    padding: 12px 16px;
-    background-color: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-    color: #fff;
-    font-size: 14px;
-}
-
-.donation-input-group input:focus {
-    outline: none;
-    border-color: #f7e4ab;
-    background-color: rgba(255, 255, 255, 0.15);
-}
-
-.donation-input-group input::placeholder {
-    color: rgba(255, 255, 255, 0.5);
-}
-
-.donation-button {
-    padding: 12px 24px;
-    background-color: #f7e4ab;
-    color: #1a1a1a;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    font-weight: bold;
-    font-size: 14px;
-    transition: background-color 0.3s;
-    white-space: nowrap;
-}
-
-.donation-button:hover {
-    background-color: #ffdf80;
-}
-
-.donation-button:active {
-    transform: scale(0.98);
-}
-
-.mock-toggle {
-    margin-top: 10px;
-    padding: 8px;
-    background-color: rgba(255, 255, 255, 0.05);
-    border-radius: 4px;
-    font-size: 11px;
-}
-
-.mock-toggle label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-    color: #ccc;
-}
-
-.mock-toggle input[type="checkbox"] {
-    cursor: pointer;
-    width: 16px;
-    height: 16px;
-}
-
-.mock-toggle span {
-    user-select: none;
-}*/
-
-/* Settings panel */
-/*.settings-panel {
-    position: absolute;
-    top: 20px;
-    left: 20px;
-    background-color: rgba(0, 0, 0, 0.8);
-    padding: 15px;
-    border-radius: 8px;
-    z-index: 100;
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    max-width: 300px;
-}
-
-.settings-panel h3 {
-    margin-bottom: 15px;
-    font-size: 14px;
-    color: #f7e4ab;
-}
-
-.setting-item {
-    margin-bottom: 12px;
-    display: flex;
-    flex-direction: column;
-    gap: 5px;
-}
-
-.setting-item label {
-    font-size: 12px;
-    color: #ccc;
-}
-
-.setting-item input {
-    padding: 6px;
-    background-color: rgba(255, 255, 255, 0.1);
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 4px;
-    color: #fff;
-    font-size: 12px;
-}
-
-.setting-item input:focus {
-    outline: none;
-    border-color: #f7e4ab;
-}
-
-/* Ensure divs have content to prevent display:none in CMS */
-/*.map-container::before {
-    content: '';
-    display: block;
-}*/
-
 .map-wrapper::before {
     content: '';
     display: block;
@@ -313,14 +139,3 @@ body {
     content: '';
     display: block;
 }
-
-/*.donation-panel::before {
-    content: '';
-    display: block;
-}
-
-.settings-panel::before {
-    content: '';
-    display: block;
-}/*
-
