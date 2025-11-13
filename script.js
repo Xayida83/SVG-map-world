@@ -4,7 +4,7 @@
 // =======================
 const CONFIG = {
   pricePerPoint: 50,
-  regionPercentage: 40,
+  regionPercentage: 20,
   updateInterval: 30, // sekunder
   minDistance: 2,     // minsta pixelavstånd mellan punkter
   newDonationDuration: 15, // sekunder
@@ -13,9 +13,9 @@ const CONFIG = {
   useMockData: true,
   circleBoundary: {
     enabled: true,
-    centerX: 0.5,      // 0-1, relativt till kartans bredd (0.5 = mitt)
+    centerX: 0.4,      // 0-1, relativt till kartans bredd (0.5 = mitt)
     centerY: 0.67,     // 0-1, relativt till kartans höjd (0.5 = mitt)
-    radius: 0.5,       // 0-1, relativt till kartans minsta dimension
+    radius: 0.4,       // 0-1, relativt till kartans minsta dimension
     showVisual: true   // visa cirkeln på canvas
   },
   // Kartfärger
@@ -57,7 +57,7 @@ let updateTimer = null;
 // Mock & API helpers
 // =======================
 let MOCK_MODE = CONFIG.useMockData;
-const MOCK_RESPONSE = { amount: 13000 };
+const MOCK_RESPONSE = { amount: 19000 };
 const urls = [{ id: "collected-now", url: CONFIG.apiUrl }];
 
 function getMockDonationData() {
@@ -523,13 +523,13 @@ function placePointsInCountries(countryPaths, pointCount) {
 
   if (totalArea === 0) {
     // Fallback till jämn fördelning om ingen yta kunde beräknas
-    const pointsPerCountry = Math.ceil(pointCount / countryPaths.length);
+    const pointsPerCountry = Math.max(2, Math.ceil(pointCount / countryPaths.length));
     let placedCount = 0;
     for (const path of countryPaths) {
       if (placedCount >= pointCount) break;
       const toPlace = Math.min(pointsPerCountry, pointCount - placedCount);
       for (let i = 0; i < toPlace; i++) {
-        const point = findPointOnLand(path);
+        const point = findPointOnLand(path, 500); // Öka försök för svåra länder
         if (point) {
           points.push(point);
           placedCount++;
@@ -539,36 +539,63 @@ function placePointsInCountries(countryPaths, pointCount) {
     return;
   }
 
-  // Fördela prickar proportionellt baserat på yta
-  let placedCount = 0;
+  // Beräkna minimum prickar per land (2) och totala minimum prickar
+  const minPointsPerCountry = 1;
+  const totalMinPoints = countryAreas.length * minPointsPerCountry;
+  
+  // Om vi har för få prickar totalt, öka pointCount
+  const adjustedPointCount = Math.max(pointCount, totalMinPoints);
+  
+  // Fördela prickar proportionellt baserat på yta, men garantera minimum
+  let remainingPoints = adjustedPointCount;
   const countryPointTargets = [];
 
-  // Beräkna målantal prickar per land baserat på yta
+  // Först: ge varje land minimum antal prickar
   for (const { path, area } of countryAreas) {
-    const proportion = area / totalArea;
-    const targetPoints = Math.max(1, Math.round(pointCount * proportion));
-    countryPointTargets.push({ path, targetPoints, placed: 0 });
+    countryPointTargets.push({ 
+      path, 
+      area, 
+      minPoints: minPointsPerCountry,
+      extraPoints: 0,
+      totalTarget: minPointsPerCountry
+    });
+    remainingPoints -= minPointsPerCountry;
   }
 
-  // Placera prickar i varje land baserat på målantalet
-  for (const { path, targetPoints } of countryPointTargets) {
-    if (placedCount >= pointCount) break;
+  // Sedan: fördela resterande prickar proportionellt baserat på yta
+  if (remainingPoints > 0) {
+    for (const country of countryPointTargets) {
+      const proportion = country.area / totalArea;
+      country.extraPoints = Math.round(remainingPoints * proportion);
+      country.totalTarget = country.minPoints + country.extraPoints;
+    }
+  }
 
-    const toPlace = Math.min(targetPoints, pointCount - placedCount);
-    for (let i = 0; i < toPlace; i++) {
-      const point = findPointOnLand(path);
+  // Placera prickar i varje land, med försök att säkerställa att alla får sina prickar
+  for (const { path, totalTarget } of countryPointTargets) {
+    let placedForCountry = 0;
+    let attempts = 0;
+    const maxAttemptsForCountry = totalTarget * 20; // Ge mer tid för större länder
+
+    // Försök placera alla prickar för detta land
+    while (placedForCountry < totalTarget && attempts < maxAttemptsForCountry) {
+      // Öka antalet försök i findPointOnLand baserat på hur många vi redan försökt
+      const pointAttempts = Math.min(500, 100 + (attempts * 2));
+      const point = findPointOnLand(path, pointAttempts);
+      
       if (point) {
         points.push(point);
-        placedCount++;
+        placedForCountry++;
       }
+      attempts++;
     }
   }
 }
 
-function findPointOnLand(path) {
+function findPointOnLand(path, maxAttempts = 100) {
   if (!mapSvg) return null;
 
-  const maxAttempts = 100;
+  maxAttempts = maxAttempts || 100;
   let attempts = 0;
 
   while (attempts < maxAttempts) {
