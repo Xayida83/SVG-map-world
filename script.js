@@ -4,7 +4,7 @@
 // =======================
 const CONFIG = {
   pricePerPoint: 50,
-  regionPercentage: 20,
+  regionPercentage: 40,
   updateInterval: 30, // sekunder
   minDistance: 2,     // minsta pixelavstånd mellan punkter
   newDonationDuration: 15, // sekunder
@@ -20,9 +20,9 @@ const CONFIG = {
   },
   // Kartfärger
   mapColors: {
-    fill: "#464646",           // Landfärg
-    stroke: "#beb8b8",      // Kantfärg
-    strokeWidth: "0.5"      // Kantbredd
+    fill: "#464646",   // Landfärg
+    stroke: "#beb8b8", // Kantfärg
+    strokeWidth: "0.5" // Kantbredd
   }
 };
 
@@ -38,7 +38,16 @@ const REGION_COUNTRIES = {
   // Southern Africa
   ZA: "South Africa", ZW: "Zimbabwe", BW: "Botswana", NA: "Namibia",
   MZ: "Mozambique", ZM: "Zambia", MW: "Malawi", MG: "Madagascar",
-  LS: "Lesotho", SZ: "Eswatini", CD: "Democratic Republic of Congo"
+  LS: "Lesotho", SZ: "Eswatini", CD: "Democratic Republic of Congo", AO: "Angola", 
+  TZ: "Tanzania"
+};
+
+// Lägg till efter REGION_COUNTRIES
+const LOW_PRIORITY_COUNTRIES = {
+  // Lägg till ISO-landskoder för länder som ska prioriteras lägre
+  US: "United States", RU: "Russia", CN: "China", CA: "Canada",
+  AU: "Australia", GL: "Greenland", PR: "Puerto Rico", MQ: "Martinique",
+  DM: "Dominica", GP: "Guadeloupe"
 };
 
 // =======================
@@ -57,21 +66,27 @@ let updateTimer = null;
 // Mock & API helpers
 // =======================
 let MOCK_MODE = CONFIG.useMockData;
-const MOCK_RESPONSE = { amount: 19000 };
+const MOCK_RESPONSE = { amount: 14000 };
 const urls = [{ id: "collected-now", url: CONFIG.apiUrl }];
 
 function getMockDonationData() {
-  const baseAmount = 9000;
-  const timeBasedIncrease = Math.floor(Date.now() / 10000) % 2000;
-  const shouldAddDonation = Math.random() < 0.3;
-  const donationAmount = shouldAddDonation ? (50 + Math.floor(Math.random() * 450)) : 0;
-  return { amount: baseAmount + timeBasedIncrease + donationAmount };
+  // Om det är första gången (currentAmount är 0), sätt bassumma
+  if (currentAmount === 0) {
+    return { amount: MOCK_RESPONSE.amount };
+  }
+  
+  // Annars lägg till 1-3 prickar
+  const pointsToAdd = 1 + Math.floor(Math.random() * 3);
+  const amountToAdd = pointsToAdd * CONFIG.pricePerPoint;
+  return { amount: currentAmount + amountToAdd };
 }
 
 function fetchData(url) {
   if (MOCK_MODE) {
-    console.log("[MOCK]", MOCK_RESPONSE);
-    return Promise.resolve({ amount: Number(MOCK_RESPONSE.amount) || 0 });
+    // Använd getMockDonationData() för att simulera ökande belopp
+    const mockData = getMockDonationData();
+    console.log("[MOCK]", mockData);
+    return Promise.resolve({ amount: Number(mockData.amount) || 0 });
   }
 
   return fetch(url, { cache: "no-store" })
@@ -317,6 +332,7 @@ function fetchDonationData() {
       previousAmount = currentAmount;
       currentAmount = amount;
       console.log("[AMOUNT]", currentAmount);
+      console.log("[POINTS TO SHOW]", Math.floor(currentAmount / CONFIG.pricePerPoint));
       updatePoints();
     })
     .catch(error => {
@@ -324,7 +340,8 @@ function fetchDonationData() {
       previousAmount = currentAmount;
       const mockData = getMockDonationData();
       currentAmount = Number(mockData.amount) || 0;
-      console.log("[FALLBACK MOCK AMOUNT]", currentAmount);
+      console.log("[FALLBACK MOCK] +" + (mockData.amount - previousAmount) + " kr, totalt: " + currentAmount);
+      console.log("[POINTS TO SHOW]", Math.floor(currentAmount / CONFIG.pricePerPoint));
       updatePoints();
     });
 }
@@ -384,12 +401,22 @@ function testNewPoints(count = 3) {
 // Punkter / rendering
 // =======================
 function updatePoints() {
-  if (!mapSvg) return;
+  if (!mapSvg) {
+    console.log("[UPDATE POINTS] Väntar på att kartan ska laddas...");
+    return;
+  }
 
   const totalPoints = Math.floor(currentAmount / CONFIG.pricePerPoint);
   const previousPoints = Math.floor(previousAmount / CONFIG.pricePerPoint);
   const donationDifference = currentAmount - previousAmount;
   const calculatedNewPoints = Math.floor(donationDifference / CONFIG.pricePerPoint);
+
+  console.log("[UPDATE POINTS]", {
+    currentAmount,
+    totalPoints,
+    existingPoints: points.filter(p => !p.isNew).length,
+    newPoints: calculatedNewPoints
+  });
 
   const now = Date.now();
   points = points.filter(p => {
@@ -400,29 +427,213 @@ function updatePoints() {
   const existingRegularPoints = points.filter(p => !p.isNew).length;
   const neededRegularPoints = totalPoints - existingRegularPoints;
 
+  // Om vi har för många prickar, ta bort överskottet
+  if (neededRegularPoints < 0) {
+    const pointsToRemove = Math.abs(neededRegularPoints);
+    const regularPoints = points.filter(p => !p.isNew);
+    regularPoints.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+    for (let i = 0; i < pointsToRemove && i < regularPoints.length; i++) {
+      const index = points.indexOf(regularPoints[i]);
+      if (index !== -1) {
+        points.splice(index, 1);
+      }
+    }
+  }
+
+  // Beräkna hur många prickar som BORDE finnas i varje kategori baserat på totalPoints
+  const targetRegionPoints = Math.floor(totalPoints * (CONFIG.regionPercentage / 100));
+  const targetGlobalPoints = totalPoints - targetRegionPoints;
+
   if (neededRegularPoints > 0) {
     const { regionCountries, globalCountries } = getCountryPaths();
-    const regionPointsCount = Math.floor(neededRegularPoints * (CONFIG.regionPercentage / 100));
-    const globalPointsCount = neededRegularPoints - regionPointsCount;
-
-    placePointsInCountries(regionCountries, regionPointsCount);
-    placePointsInCountries(globalCountries, globalPointsCount);
+    
+    // Placera prickar sekventiellt baserat på procenten
+    // T.ex. med 40%: var 5:e prick ska vara region (2 av 5)
+    placePointsSequentially(regionCountries, globalCountries, neededRegularPoints, true);
   }
 
+  // För nya prickar, använd samma sekventiella fördelning
   if (calculatedNewPoints > 0) {
     const { regionCountries, globalCountries } = getCountryPaths();
-    const newRegionPoints = Math.floor(calculatedNewPoints * (CONFIG.regionPercentage / 100));
-    const newGlobalPoints = calculatedNewPoints - newRegionPoints;
-
+    
     const newPointsBefore = points.length;
-    placePointsInCountries(regionCountries, newRegionPoints);
-    placePointsInCountries(globalCountries, newGlobalPoints);
-
+    placePointsSequentially(regionCountries, globalCountries, calculatedNewPoints, false);
+    
+    // Markera nya prickar OMEDELBART efter att de skapats
     markNewPoints(newPointsBefore);
+  } else {
+    // Om inga nya prickar, uppdatera ändå DOM
+    updatePointStates();
+    redrawPoints();
   }
+  
+  console.log("[POINTS AFTER UPDATE]", points.length);
+}
 
-  updatePointStates();
-  redrawPoints();
+// Hjälpfunktion för att kolla om en punkt ligger i ett land
+function isPointInCountry(point, path) {
+  if (!point.svgX || !point.svgY) return false;
+  try {
+    return isPointInPath(path, point.svgX, point.svgY);
+  } catch {
+    return false;
+  }
+}
+
+// Hjälpfunktion för att räkna prickar per land
+function countPointsInCountry(path) {
+  let count = 0;
+  for (const point of points) {
+    if (isPointInCountry(point, path)) {
+      count++;
+    }
+  }
+  return count;
+}
+
+// Hjälpfunktion för att beräkna landets area
+function getCountryArea(path) {
+  try {
+    const bbox = path.getBBox();
+    return bbox.width * bbox.height;
+  } catch {
+    return 0;
+  }
+}
+
+// Ny funktion för att placera prickar sekventiellt med rotation mellan länder och area-baserad fördelning
+function placePointsSequentially(regionCountries, globalCountries, pointCount, enforceMinimum) {
+  if (pointCount <= 0) return;
+  
+  // Beräkna fördelningen baserat på regionPercentage
+  const regionPercentage = CONFIG.regionPercentage / 100;
+  const sequenceLength = 100;
+  const regionCountInSequence = Math.round(sequenceLength * regionPercentage);
+  const globalCountInSequence = sequenceLength - regionCountInSequence;
+  
+  const sequence = [];
+  for (let i = 0; i < regionCountInSequence; i++) {
+    sequence.push('region');
+  }
+  for (let i = 0; i < globalCountInSequence; i++) {
+    sequence.push('global');
+  }
+  
+  // Blanda sekvensen för jämnare fördelning
+  for (let i = sequence.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [sequence[i], sequence[j]] = [sequence[j], sequence[i]];
+  }
+  
+  // Beräkna area och prickar för varje land
+  const regionCountriesWithData = regionCountries.map(path => {
+    const area = getCountryArea(path);
+    const pointCount = countPointsInCountry(path);
+    return { path, area, pointCount };
+  }).filter(c => c.area > 0); // Filtrera bort länder utan area
+  
+  const globalCountriesWithData = globalCountries.map(path => {
+    const area = getCountryArea(path);
+    const pointCount = countPointsInCountry(path);
+    return { path, area, pointCount };
+  }).filter(c => c.area > 0);
+  
+  // Beräkna total area för viktning
+  const totalRegionArea = regionCountriesWithData.reduce((sum, c) => sum + c.area, 0);
+  const totalGlobalArea = globalCountriesWithData.reduce((sum, c) => sum + c.area, 0);
+  
+  // Funktion för att välja ett land baserat på area och antal prickar
+  function selectCountry(countries, totalArea) {
+    if (countries.length === 0) return null;
+    
+    // Beräkna vikt för varje land
+    // Vikt = area * (1 / (pointCount + 1))
+    // Detta ger större länder högre vikt, men länder med färre prickar får ännu högre vikt
+    const weights = countries.map(country => {
+      const areaWeight = country.area / totalArea; // Proportionell till area
+      const pointCountPenalty = 1 / (country.pointCount + 1); // Lägre prickar = högre vikt
+      return areaWeight * pointCountPenalty;
+    });
+    
+    // Beräkna total vikt
+    const totalWeight = weights.reduce((sum, w) => sum + w, 0);
+    if (totalWeight === 0) {
+      // Om alla har samma vikt, välj random
+      return countries[Math.floor(Math.random() * countries.length)];
+    }
+    
+    // Välj land baserat på viktad sannolikhet
+    let random = Math.random() * totalWeight;
+    for (let i = 0; i < countries.length; i++) {
+      random -= weights[i];
+      if (random <= 0) {
+        return countries[i];
+      }
+    }
+    
+    // Fallback
+    return countries[0];
+  }
+  
+  // Placera prickar enligt sekvensen
+  let placedCount = 0;
+  let sequenceIndex = 0;
+  let failedAttempts = 0;
+  const maxFailedAttempts = pointCount * 20;
+  
+  while (placedCount < pointCount && failedAttempts < maxFailedAttempts) {
+    const targetType = sequence[sequenceIndex % sequence.length];
+    sequenceIndex++;
+    
+    let point = null;
+    let attemptsForThisPoint = 0;
+    const maxAttemptsPerPoint = 20; // Öka antal försök
+    
+    while (!point && attemptsForThisPoint < maxAttemptsPerPoint) {
+      let selectedCountry = null;
+      
+      if (targetType === 'region' && regionCountriesWithData.length > 0 && totalRegionArea > 0) {
+        selectedCountry = selectCountry(regionCountriesWithData, totalRegionArea);
+      } else if (targetType === 'global' && globalCountriesWithData.length > 0 && totalGlobalArea > 0) {
+        selectedCountry = selectCountry(globalCountriesWithData, totalGlobalArea);
+      }
+      
+      if (selectedCountry) {
+        point = findPointOnLand(selectedCountry.path, 500);
+        
+        if (point) {
+          // Uppdatera antal prickar för detta land
+          selectedCountry.pointCount++;
+        }
+      }
+      
+      attemptsForThisPoint++;
+      if (!point) {
+        failedAttempts++;
+      }
+    }
+    
+    if (point) {
+      points.push(point);
+      placedCount++;
+    } else {
+      failedAttempts++;
+    }
+  }
+  
+  console.log("[SEQUENTIAL PLACEMENT]", {
+    pointCount,
+    placedCount,
+    failedAttempts,
+    regionPercentage: CONFIG.regionPercentage + "%",
+    sequencePattern: `${regionCountInSequence}/${sequenceLength} region, ${globalCountInSequence}/${sequenceLength} global`,
+    regionCountriesUsed: regionCountriesWithData.filter(c => c.pointCount > 0).length,
+    globalCountriesUsed: globalCountriesWithData.filter(c => c.pointCount > 0).length,
+    regionPointsDistribution: regionCountriesWithData
+      .filter(c => c.pointCount > 0)
+      .map(c => ({ area: Math.round(c.area), points: c.pointCount }))
+      .sort((a, b) => b.area - a.area)
+  });
 }
 
 function getCountryPaths() {
@@ -473,13 +684,21 @@ function markNewPoints(startIndex) {
     point.createdAt = Date.now();
     point.animationDuration = 0.8 + Math.random() * 0.6;
     point.animationDelay = Math.random() * 1;
+  });
 
+  // Omedelbart uppdatera DOM så att nya prickar visas korrekt
+  redrawPoints();
+
+  // Sätt timeout för att ta bort "new" status efter duration
+  newlyAddedPoints.forEach(point => {
     setTimeout(() => {
       const idx = points.findIndex(p => p === point);
       if (idx !== -1 && points[idx]) {
         points[idx].isNew = false;
-        points[idx].animationDuration = 1.5 + Math.random() * 2;
-        points[idx].animationDelay = Math.random() * 3;
+        if (!points[idx].animationDuration) {
+          points[idx].animationDuration = 1.5 + Math.random() * 2;
+          points[idx].animationDelay = Math.random() * 3;
+        }
         redrawPoints();
       }
     }, CONFIG.newDonationDuration * 1000);
@@ -499,37 +718,78 @@ function updatePointStates() {
   });
 }
 
-function placePointsInCountries(countryPaths, pointCount) {
+function placePointsInCountries(countryPaths, pointCount, enforceMinimum = false) {
   if (!countryPaths || countryPaths.length === 0 || pointCount <= 0) return;
+
+  // Separera länder i högre och lägre prioritet
+  const highPriorityCountries = [];
+  const lowPriorityCountries = [];
+  
+  for (const path of countryPaths) {
+    const countryId = getCountryId(path);
+    if (!countryId) continue;
+    
+    const upperId = countryId.toUpperCase().substring(0, 2);
+    if (LOW_PRIORITY_COUNTRIES[upperId]) {
+      lowPriorityCountries.push(path);
+    } else {
+      highPriorityCountries.push(path);
+    }
+  }
 
   // Beräkna yta för varje land och total yta
   const countryAreas = [];
   let totalArea = 0;
 
-  for (const path of countryPaths) {
+  // Lägg till högre prioriterade länder först
+  for (const path of highPriorityCountries) {
     try {
       const bbox = path.getBBox();
       const area = bbox.width * bbox.height;
       if (area > 0) {
-        countryAreas.push({ path, area });
+        countryAreas.push({ path, area, priority: 'high' });
         totalArea += area;
       }
     } catch {
-      // Om vi inte kan få bounding box, ge landet en minimal yta
-      countryAreas.push({ path, area: 1 });
+      countryAreas.push({ path, area: 1, priority: 'high' });
+      totalArea += 1;
+    }
+  }
+
+  // Lägg till lägre prioriterade länder sist
+  for (const path of lowPriorityCountries) {
+    try {
+      const bbox = path.getBBox();
+      const area = bbox.width * bbox.height;
+      if (area > 0) {
+        countryAreas.push({ path, area, priority: 'low' });
+        totalArea += area;
+      }
+    } catch {
+      countryAreas.push({ path, area: 1, priority: 'low' });
       totalArea += 1;
     }
   }
 
   if (totalArea === 0) {
-    // Fallback till jämn fördelning om ingen yta kunde beräknas
-    const pointsPerCountry = Math.max(2, Math.ceil(pointCount / countryPaths.length));
+    // Placera först i högre prioriterade länder
+    const highPriorityPoints = Math.min(pointCount, highPriorityCountries.length);
     let placedCount = 0;
-    for (const path of countryPaths) {
-      if (placedCount >= pointCount) break;
-      const toPlace = Math.min(pointsPerCountry, pointCount - placedCount);
-      for (let i = 0; i < toPlace; i++) {
-        const point = findPointOnLand(path, 500); // Öka försök för svåra länder
+    
+    for (const path of highPriorityCountries) {
+      if (placedCount >= highPriorityPoints) break;
+      const point = findPointOnLand(path, 500);
+      if (point) {
+        points.push(point);
+        placedCount++;
+      }
+    }
+    
+    // Om det finns fler prickar kvar, placera i lägre prioriterade länder
+    if (placedCount < pointCount) {
+      for (const path of lowPriorityCountries) {
+        if (placedCount >= pointCount) break;
+        const point = findPointOnLand(path, 500);
         if (point) {
           points.push(point);
           placedCount++;
@@ -539,47 +799,108 @@ function placePointsInCountries(countryPaths, pointCount) {
     return;
   }
 
-  // Beräkna minimum prickar per land (2) och totala minimum prickar
-  const minPointsPerCountry = 1;
+  // För nya prickar (enforceMinimum = false), använd enklare fördelning
+  if (!enforceMinimum && pointCount <= countryAreas.length) {
+    // Sortera: högre prioritet först, sedan storlek
+    const sortedCountries = [...countryAreas].sort((a, b) => {
+      // Högre prioritet först
+      if (a.priority === 'high' && b.priority === 'low') return -1;
+      if (a.priority === 'low' && b.priority === 'high') return 1;
+      // Sedan storlek (störst först)
+      return b.area - a.area;
+    });
+    
+    let placedCount = 0;
+    
+    for (const { path } of sortedCountries) {
+      if (placedCount >= pointCount) break;
+      const point = findPointOnLand(path, 500);
+      if (point) {
+        points.push(point);
+        placedCount++;
+      }
+    }
+    return;
+  }
+
+  // Minimum-logik för initial påfyllning
+  const minPointsPerCountry = enforceMinimum ? 1 : 0;
   const totalMinPoints = countryAreas.length * minPointsPerCountry;
   
-  // Om vi har för få prickar totalt, öka pointCount
-  const adjustedPointCount = Math.max(pointCount, totalMinPoints);
+  const adjustedPointCount = enforceMinimum && pointCount >= totalMinPoints 
+    ? Math.max(pointCount, totalMinPoints)
+    : pointCount;
   
-  // Fördela prickar proportionellt baserat på yta, men garantera minimum
   let remainingPoints = adjustedPointCount;
   const countryPointTargets = [];
 
-  // Först: ge varje land minimum antal prickar
-  for (const { path, area } of countryAreas) {
-    countryPointTargets.push({ 
-      path, 
-      area, 
-      minPoints: minPointsPerCountry,
-      extraPoints: 0,
-      totalTarget: minPointsPerCountry
-    });
-    remainingPoints -= minPointsPerCountry;
+  if (enforceMinimum && adjustedPointCount >= totalMinPoints) {
+    // Ge minimum prickar till alla länder, men högre prioriterade först
+    for (const { path, area, priority } of countryAreas) {
+      countryPointTargets.push({ 
+        path, 
+        area, 
+        priority,
+        minPoints: minPointsPerCountry,
+        extraPoints: 0,
+        totalTarget: minPointsPerCountry
+      });
+      remainingPoints -= minPointsPerCountry;
+    }
+  } else {
+    for (const { path, area, priority } of countryAreas) {
+      countryPointTargets.push({ 
+        path, 
+        area, 
+        priority,
+        minPoints: 0,
+        extraPoints: 0,
+        totalTarget: 0
+      });
+    }
   }
 
-  // Sedan: fördela resterande prickar proportionellt baserat på yta
+  // Fördela resterande prickar proportionellt, men ge mer till högre prioriterade länder
   if (remainingPoints > 0) {
+    // Beräkna total area för högre och lägre prioriterade länder separat
+    const highPriorityArea = countryAreas
+      .filter(c => c.priority === 'high')
+      .reduce((sum, c) => sum + c.area, 0);
+    const lowPriorityArea = countryAreas
+      .filter(c => c.priority === 'low')
+      .reduce((sum, c) => sum + c.area, 0);
+    
+    // Fördela 80% till högre prioriterade, 20% till lägre (eller proportionellt baserat på area)
+    const highPriorityPoints = Math.floor(remainingPoints * 0.8);
+    const lowPriorityPoints = remainingPoints - highPriorityPoints;
+    
     for (const country of countryPointTargets) {
-      const proportion = country.area / totalArea;
-      country.extraPoints = Math.round(remainingPoints * proportion);
+      if (country.priority === 'high' && highPriorityArea > 0) {
+        const proportion = country.area / highPriorityArea;
+        country.extraPoints = Math.round(highPriorityPoints * proportion);
+      } else if (country.priority === 'low' && lowPriorityArea > 0) {
+        const proportion = country.area / lowPriorityArea;
+        country.extraPoints = Math.round(lowPriorityPoints * proportion);
+      }
       country.totalTarget = country.minPoints + country.extraPoints;
     }
   }
 
-  // Placera prickar i varje land, med försök att säkerställa att alla får sina prickar
-  for (const { path, totalTarget } of countryPointTargets) {
+  // Placera prickar - högre prioriterade länder först
+  const sortedTargets = [...countryPointTargets].sort((a, b) => {
+    if (a.priority === 'high' && b.priority === 'low') return -1;
+    if (a.priority === 'low' && b.priority === 'high') return 1;
+    return 0;
+  });
+
+  for (const { path, totalTarget } of sortedTargets) {
+    if (totalTarget === 0) continue;
+    
     let placedForCountry = 0;
     let attempts = 0;
-    const maxAttemptsForCountry = totalTarget * 20; // Ge mer tid för större länder
+    const maxAttemptsForCountry = totalTarget * 20;
 
-    // Försök placera alla prickar för detta land
     while (placedForCountry < totalTarget && attempts < maxAttemptsForCountry) {
-      // Öka antalet försök i findPointOnLand baserat på hur många vi redan försökt
       const pointAttempts = Math.min(500, 100 + (attempts * 2));
       const point = findPointOnLand(path, pointAttempts);
       
