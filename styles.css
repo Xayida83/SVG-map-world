@@ -16,20 +16,27 @@ body {
 :root {
     /* Vanliga prickar */
     --point-color: #fffef5;
+    --point-width: 2px;
+    --point-height: 2px;
     --point-shadow: 0 0 1px rgba(255, 255, 250, 0.9),
                 0 0 3px 2px rgba(255, 255, 240, 0.25);
     --point-blend-mode: screen;
     
     /* Nya donationer */
     --point-new-color: #ffdf80;
+    --point-new-width: 2px;
+    --point-new-height: 2px;
     --point-new-shadow: 0 0 8px 3px rgba(255, 210, 90, 0.75),
                        0 0 12px 8px rgba(255, 210, 90, 0.35);
     --point-new-blend-mode: screen;
+
+    /*havfärg*/
+        --water-color: #717070;
 }
 .container {
     position: relative;
     height: 110vh;
-    background: #464646;
+    background: var(--water-color);
 }
 
 .map-wrapper {
@@ -37,7 +44,7 @@ body {
     width: 100%;
     height: 100vh;
     overflow: hidden;
-    background-color: #464646;
+    background-color: var(--water-color);
 }
 
 .map-container {
@@ -67,8 +74,8 @@ body {
 
 .point {
     position: absolute;
-    width: 2px;
-    height: 2px;
+    width: var(--point-width);
+    height: var(--point-height);
     border-radius: 50%;
     background-color: var(--point-color);
     box-shadow: var(--point-shadow);
@@ -84,8 +91,8 @@ body {
 }
 
 .point.new-donation {
-    width: 2px;
-    height: 2px;
+    width: var(--point-new-width);
+    height: var(--point-new-height);
     background-color: var(--point-new-color);
     box-shadow: var(--point-new-shadow);
     mix-blend-mode: var(--point-new-blend-mode);

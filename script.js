@@ -20,14 +20,14 @@ const CONFIG = {
   },
   // Kartfärger
   mapColors: {
-    fill: "#2a2a2a",           // Landfärg
+    fill: "#464646",           // Landfärg
     stroke: "#beb8b8",      // Kantfärg
     strokeWidth: "0.5"      // Kantbredd
   }
 };
 
 // =======================
-// Regioner / exkludering
+// Regioner 
 // =======================
 const REGION_COUNTRIES = {
   // South America
@@ -502,13 +502,59 @@ function updatePointStates() {
 function placePointsInCountries(countryPaths, pointCount) {
   if (!countryPaths || countryPaths.length === 0 || pointCount <= 0) return;
 
-  const pointsPerCountry = Math.ceil(pointCount / countryPaths.length);
-  let placedCount = 0;
+  // Beräkna yta för varje land och total yta
+  const countryAreas = [];
+  let totalArea = 0;
 
   for (const path of countryPaths) {
+    try {
+      const bbox = path.getBBox();
+      const area = bbox.width * bbox.height;
+      if (area > 0) {
+        countryAreas.push({ path, area });
+        totalArea += area;
+      }
+    } catch {
+      // Om vi inte kan få bounding box, ge landet en minimal yta
+      countryAreas.push({ path, area: 1 });
+      totalArea += 1;
+    }
+  }
+
+  if (totalArea === 0) {
+    // Fallback till jämn fördelning om ingen yta kunde beräknas
+    const pointsPerCountry = Math.ceil(pointCount / countryPaths.length);
+    let placedCount = 0;
+    for (const path of countryPaths) {
+      if (placedCount >= pointCount) break;
+      const toPlace = Math.min(pointsPerCountry, pointCount - placedCount);
+      for (let i = 0; i < toPlace; i++) {
+        const point = findPointOnLand(path);
+        if (point) {
+          points.push(point);
+          placedCount++;
+        }
+      }
+    }
+    return;
+  }
+
+  // Fördela prickar proportionellt baserat på yta
+  let placedCount = 0;
+  const countryPointTargets = [];
+
+  // Beräkna målantal prickar per land baserat på yta
+  for (const { path, area } of countryAreas) {
+    const proportion = area / totalArea;
+    const targetPoints = Math.max(1, Math.round(pointCount * proportion));
+    countryPointTargets.push({ path, targetPoints, placed: 0 });
+  }
+
+  // Placera prickar i varje land baserat på målantalet
+  for (const { path, targetPoints } of countryPointTargets) {
     if (placedCount >= pointCount) break;
 
-    const toPlace = Math.min(pointsPerCountry, pointCount - placedCount);
+    const toPlace = Math.min(targetPoints, pointCount - placedCount);
     for (let i = 0; i < toPlace; i++) {
       const point = findPointOnLand(path);
       if (point) {
