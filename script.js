@@ -12,13 +12,13 @@ const CONFIG = {
   apiUrl: "https://actsvenskakyrkan.adoveo.com/getProgressbarData/40",
   mapUrl: "https://raw.githubusercontent.com/Xayida83/SVG-map-world/refs/heads/map-nr-two/world%20(1).svg",
   useMockData: true,
-  minCountryArea: 150, // minsta area (width * height) för att räknas som land (öar filtreras bort)
+  minCountryArea: 0, // minsta area (width * height) för att räknas som land (öar filtreras bort)
   circleBoundary: {
-    enabled: false,
-    centerX: 0.4,      // 0-1, relativt till kartans bredd (0.5 = mitt)
-    centerY: 0.70,     // 0-1, relativt till kartans höjd (0.5 = mitt)
+    enabled: true,
+    centerX: 0.45,      // 0-1, relativt till kartans bredd (0.5 = mitt)
+    centerY: 0.57,     // 0-1, relativt till kartans höjd (0.5 = mitt)
     radius: 0.35,       // 0-1, relativt till kartans minsta dimension
-    showVisual: false   // visa cirkeln på canvas
+    showVisual: true   // visa cirkeln på canvas
   },
   // Kartfärger
   mapColors: {
@@ -156,6 +156,9 @@ function initializeElements() {
     canvas = document.createElement("canvas");
     ctx = canvas.getContext("2d");
   }
+  
+  // Applicera cirkel-klippning vid initiering
+  applyCircleClip();
 }
 
 function createCanvasElement() {
@@ -190,6 +193,96 @@ function resizeCanvas() {
     redrawPoints();
   }
   drawCircleBoundary();
+  applyCircleClip();
+}
+
+// Funktion för att applicera cirkel-klippning på kartan och prickarna
+function applyCircleClip() {
+  if (!mapContainer || !CONFIG.circleBoundary.enabled) {
+    // Ta bort clip-path om cirkelgräns är avstängd
+    mapContainer.style.clipPath = 'none';
+    mapContainer.style.webkitClipPath = 'none';
+    mapContainer.style.boxShadow = 'none';
+    mapContainer.style.filter = 'none';
+    mapContainer.style.border = 'none';
+    mapContainer.style.borderRadius = '0';
+    mapContainer.style.setProperty('--globe-gradient', 'none');
+    // Ta bort gradient-style
+    const existingStyle = document.getElementById('globe-gradient-style');
+    if (existingStyle) existingStyle.remove();
+    return;
+  }
+  
+  const circleData = getCircleBoundaryData();
+  if (!circleData) return;
+  
+  // Skapa clip-path för cirkel
+  const clipPath = `circle(${circleData.radius}px at ${circleData.centerX}px ${circleData.centerY}px)`;
+  mapContainer.style.clipPath = clipPath;
+  mapContainer.style.webkitClipPath = clipPath;
+  
+  // Lägg till klotliknande skugga med förstärkt 3D-effekt
+  // Beräkna skugga-position baserat på cirkelns position (skugga kommer från övre vänster)
+  const shadowOffsetX = (circleData.centerX - (mapContainer.offsetWidth / 2)) * 0.5;
+  const shadowOffsetY = (circleData.centerY - (mapContainer.offsetHeight / 2)) * 0.5;
+  
+  // Skapa flera skuggor för förstärkt djup-effekt
+  const shadows = [
+    // Huvudskugga (mycket mörk, längre bort - ger starkt djup)
+    `${shadowOffsetX + 20}px ${shadowOffsetY + 35}px 120px rgba(0, 0, 0, 0.9)`,
+    // Stor mjuk skugga (för atmosfär)
+    `${shadowOffsetX + 10}px ${shadowOffsetY + 25}px 100px rgba(0, 0, 0, 0.7)`,
+    // Mellanskugga (mjukare, större spridning)
+    `${shadowOffsetX * 0.9}px ${shadowOffsetY * 0.9 + 20}px 70px rgba(0, 0, 0, 0.6)`,
+    // Närmaste skugga (för mer definition)
+    `${shadowOffsetX * 0.6}px ${shadowOffsetY * 0.6 + 12}px 40px rgba(0, 0, 0, 0.4)`,
+    // Ytterligare skugga för mer djup
+    `${shadowOffsetX * 0.3}px ${shadowOffsetY * 0.3 + 5}px 25px rgba(0, 0, 0, 0.3)`,
+    // Inre skugga för djup (mycket mörkare i botten)
+    `inset ${shadowOffsetX * 0.15}px ${shadowOffsetY * 0.15 + circleData.radius * 0.4}px ${circleData.radius * 0.5}px rgba(0, 0, 0, 0.6)`,
+    // Ytterligare inre skugga för mer kontrast
+    `inset ${shadowOffsetX * 0.1}px ${shadowOffsetY * 0.1 + circleData.radius * 0.5}px ${circleData.radius * 0.3}px rgba(0, 0, 0, 0.4)`,
+    // Stark ljus highlight i övre delen för 3D-effekt
+    `inset ${-shadowOffsetX * 0.3}px ${-shadowOffsetY * 0.3 - circleData.radius * 0.25}px ${circleData.radius * 0.4}px rgba(255, 255, 255, 0.25)`,
+    // Ytterligare highlight för mer glans
+    `inset ${-shadowOffsetX * 0.15}px ${-shadowOffsetY * 0.15 - circleData.radius * 0.15}px ${circleData.radius * 0.2}px rgba(255, 255, 255, 0.2)`
+  ].join(', ');
+  
+  mapContainer.style.boxShadow = shadows;
+  
+  // Lägg till subtil border för mer definition och 3D-effekt
+  mapContainer.style.border = `1px solid rgba(255, 255, 255, 0.1)`;
+  mapContainer.style.borderRadius = '50%';
+  
+  // Lägg till radial gradient overlay för klotliknande belysning via pseudo-element
+  const gradientCenterX = (circleData.centerX / mapContainer.offsetWidth) * 100;
+  const gradientCenterY = (circleData.centerY / mapContainer.offsetHeight) * 100;
+  const gradientRadius = (circleData.radius / Math.min(mapContainer.offsetWidth, mapContainer.offsetHeight)) * 100;
+  
+  // Använd CSS custom property för att sätta gradienten på ::before pseudo-element
+  // Förstärkt kontrast för mer 3D-effekt
+  mapContainer.style.setProperty('--globe-gradient', `radial-gradient(circle at ${gradientCenterX}% ${gradientCenterY}%, 
+    rgba(255, 255, 255, 0.2) 0%, 
+    rgba(255, 255, 255, 0.15) ${gradientRadius * 0.15}%, 
+    rgba(255, 255, 255, 0.08) ${gradientRadius * 0.25}%, 
+    rgba(255, 255, 255, 0.03) ${gradientRadius * 0.4}%, 
+    transparent ${gradientRadius * 0.55}%, 
+    rgba(0, 0, 0, 0.15) ${gradientRadius * 0.75}%, 
+    rgba(0, 0, 0, 0.35) ${gradientRadius * 0.9}%, 
+    rgba(0, 0, 0, 0.6) 100%)`);
+  
+  // Applicera gradienten direkt på ::before via style
+  const style = document.createElement('style');
+  style.id = 'globe-gradient-style';
+  const existingStyle = document.getElementById('globe-gradient-style');
+  if (existingStyle) existingStyle.remove();
+  
+  style.textContent = `
+    #mapContainer::before {
+      background: var(--globe-gradient, none);
+    }
+  `;
+  document.head.appendChild(style);
 }
 
 // =======================
@@ -295,6 +388,7 @@ function processMapSVG(svgText) {
     setTimeout(() => {
       updatePoints();
       drawCircleBoundary();
+      applyCircleClip();
     }, 200);
   }
 }
@@ -1235,6 +1329,11 @@ function createPointElement(point, index) {
 }
 
 function drawCircleBoundary() {
+  // Applicera clip-path även om showVisual är false
+  if (CONFIG.circleBoundary.enabled) {
+    applyCircleClip();
+  }
+  
   if (!ctx || !mapContainer || !CONFIG.circleBoundary.enabled || !CONFIG.circleBoundary.showVisual) {
     return;
   }

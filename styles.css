@@ -51,12 +51,25 @@ body {
     width: 100%;
     height: 100%;
     position: relative;
+    /* Skugga appliceras dynamiskt via JavaScript */
+}
+
+.map-container::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 2;
+    /* Gradient appliceras dynamiskt via JavaScript */
+    mix-blend-mode: overlay;
 }
 
 .map-container svg {
     width: 100%;
     height: 100%;
     display: block;
+    position: relative;
+    z-index: 3;
 }
 
 #pointCanvas {
