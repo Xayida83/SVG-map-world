@@ -9,7 +9,7 @@ const CONFIG = {
   minDistance: 2,     // minsta pixelavstånd mellan punkter
   newDonationDuration: 15, // sekunder
   apiUrl: "https://actsvenskakyrkan.adoveo.com/getProgressbarData/40",
-  mapUrl: "https://mapsvg.com/maps/world",
+  mapUrl: "https://raw.githubusercontent.com/Xayida83/SVG-map-world/refs/heads/map-nr-two/world%20(1).svg",
   useMockData: true,
   circleBoundary: {
     enabled: true,
@@ -180,7 +180,7 @@ function loadMap() {
     return;
   }
 
-  const localSvgPath = "https://raw.githubusercontent.com/Xayida83/SVG-map-world/refs/heads/master/world.svg";
+  const localSvgPath = "https://raw.githubusercontent.com/Xayida83/SVG-map-world/refs/heads/map-nr-two/world%20(1).svg";
 
   fetch(localSvgPath)
     .then(response => {
