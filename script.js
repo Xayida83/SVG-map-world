@@ -51,7 +51,7 @@ const LOW_PRIORITY_COUNTRIES = {
 
 // Länder som ska exkluderas helt (får inga prickar)
 const EXCLUDED_COUNTRIES = {
-  RU: "Russia", US: "United States", CN: "China", CA: "Canada", GL: "Greenland", ISR: "Israel"
+  RU: "Russia", US: "United States", CN: "China", CA: "Canada", GL: "Greenland", ISR: "Israel", IRN: "Iran"
 };
 
 // =======================
@@ -153,6 +153,9 @@ function initializeElements() {
     canvas = document.createElement("canvas");
     ctx = canvas.getContext("2d");
   }
+  
+  // Skapa text-element för meddelandet
+  createMessageText();
 }
 
 function createCanvasElement() {
@@ -187,6 +190,9 @@ function resizeCanvas() {
     redrawPoints();
   }
   drawCircleBoundary();
+  
+  // Uppdatera textens position vid resize
+  updateMessagePosition();
 }
 
 // =======================
@@ -292,6 +298,10 @@ function processMapSVG(svgText) {
     setTimeout(() => {
       updatePoints();
       drawCircleBoundary();
+      // Uppdatera textens position när kartan har laddats
+      updateMessagePosition();
+      // Visa texten första gången när kartan har laddats
+      showMessageText();
     }, 200);
   }
 }
@@ -352,7 +362,81 @@ function fetchDonationData() {
 
 function startAutoUpdate() {
   if (updateTimer) clearInterval(updateTimer);
-  updateTimer = setInterval(() => { fetchDonationData(); }, CONFIG.updateInterval * 1000);
+  updateTimer = setInterval(() => { 
+    fetchDonationData();
+  }, CONFIG.updateInterval * 1000);
+}
+
+// Funktion för att skapa text-elementet
+function createMessageText() {
+  const mapWrapper = mapContainer?.parentElement;
+  if (!mapWrapper) return;
+  
+  // Ta bort befintligt meddelande om det finns
+  const existingMessage = document.getElementById("circleMessage");
+  if (existingMessage) {
+    existingMessage.remove();
+  }
+  
+  const messageEl = document.createElement("div");
+  messageEl.id = "circleMessage";
+  messageEl.className = "circle-message";
+  messageEl.innerHTML = "Vi vill lysa upp världen<br>Hjälp oss att tända ljusen!";
+  mapWrapper.appendChild(messageEl);
+  
+  // Uppdatera positionen
+  updateMessagePosition();
+}
+
+// Funktion för att uppdatera textens position (mitt på cirkeln)
+function updateMessagePosition() {
+  const messageEl = document.getElementById("circleMessage");
+  if (!messageEl || !mapContainer) return;
+  
+  const circleData = getCircleBoundaryData();
+  if (!circleData) return;
+  
+  const containerRect = mapContainer.getBoundingClientRect();
+  const wrapperRect = mapContainer.parentElement.getBoundingClientRect();
+  
+  // Beräkna absolut position relativt till wrapper
+  const left = containerRect.left - wrapperRect.left + circleData.centerX;
+  const top = containerRect.top - wrapperRect.top + circleData.centerY;
+  
+  messageEl.style.left = left + "px";
+  messageEl.style.top = top + "px";
+  
+  // Sätt max-width baserat på cirkelns radie (80% av diametern för att passa bra)
+  const maxWidth = circleData.radius * 2 * 0.8;
+  messageEl.style.maxWidth = maxWidth + "px";
+}
+
+// Funktion för att visa texten med fade-in och dölja den efter updateInterval
+function showMessageText() {
+  const messageEl = document.getElementById("circleMessage");
+  if (!messageEl) {
+    createMessageText();
+    return;
+  }
+  
+  // Uppdatera positionen
+  updateMessagePosition();
+  
+  // Visa texten med fade-in
+  messageEl.classList.remove("fade-out");
+  messageEl.classList.add("fade-in");
+  messageEl.style.display = "block";
+  
+  // Dölj texten efter updateInterval sekunder med fade-out
+  setTimeout(() => {
+    messageEl.classList.remove("fade-in");
+    messageEl.classList.add("fade-out");
+    
+    // Ta bort elementet efter animationen är klar
+    setTimeout(() => {
+      messageEl.style.display = "none";
+    }, 1000); // Matcha fade-out animation duration
+  }, CONFIG.updateInterval * 1000);
 }
 
 function addTestDonation(amount) {
