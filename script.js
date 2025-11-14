@@ -14,8 +14,8 @@ const CONFIG = {
   circleBoundary: {
     enabled: true,
     centerX: 0.4,      // 0-1, relativt till kartans bredd (0.5 = mitt)
-    centerY: 0.67,     // 0-1, relativt till kartans höjd (0.5 = mitt)
-    radius: 0.4,       // 0-1, relativt till kartans minsta dimension
+    centerY: 0.70,     // 0-1, relativt till kartans höjd (0.5 = mitt)
+    radius: 0.35,       // 0-1, relativt till kartans minsta dimension
     showVisual: true   // visa cirkeln på canvas
   },
   // Kartfärger
@@ -45,9 +45,13 @@ const REGION_COUNTRIES = {
 // Lägg till efter REGION_COUNTRIES
 const LOW_PRIORITY_COUNTRIES = {
   // Lägg till ISO-landskoder för länder som ska prioriteras lägre
-  US: "United States", RU: "Russia", CN: "China", CA: "Canada",
-  AU: "Australia", GL: "Greenland", PR: "Puerto Rico", MQ: "Martinique",
-  DM: "Dominica", GP: "Guadeloupe"
+  AU: "Australia", PR: "Puerto Rico", MQ: "Martinique",
+  DM: "Dominica", GP: "Guadeloupe", NO: "Norway", SE: "Sweden"
+};
+
+// Länder som ska exkluderas helt (får inga prickar)
+const EXCLUDED_COUNTRIES = {
+  RU: "Russia", US: "United States", CN: "China", CA: "Canada", GL: "Greenland", ISR: "Israel"
 };
 
 // =======================
@@ -646,6 +650,12 @@ function getCountryPaths() {
     if (!countryId) return;
 
     const upperId = countryId.toUpperCase().substring(0, 2);
+    
+    // Exkludera länder som finns i EXCLUDED_COUNTRIES
+    if (EXCLUDED_COUNTRIES[upperId]) {
+      return;
+    }
+    
     if (REGION_COUNTRIES[upperId]) {
       regionCountries.push(path);
     } else {
@@ -658,6 +668,12 @@ function getCountryPaths() {
     countryPaths.forEach(path => {
       const countryId = getCountryId(path);
       if (!countryId) return;
+      
+      const upperId = countryId.toUpperCase().substring(0, 2);
+      // Exkludera även i fallback
+      if (EXCLUDED_COUNTRIES[upperId]) {
+        return;
+      }
       
       const bbox = path.getBBox();
       if (bbox.width > 0 && bbox.height > 0) {
@@ -730,6 +746,12 @@ function placePointsInCountries(countryPaths, pointCount, enforceMinimum = false
     if (!countryId) continue;
     
     const upperId = countryId.toUpperCase().substring(0, 2);
+    
+    // Exkludera länder som finns i EXCLUDED_COUNTRIES
+    if (EXCLUDED_COUNTRIES[upperId]) {
+      continue;
+    }
+    
     if (LOW_PRIORITY_COUNTRIES[upperId]) {
       lowPriorityCountries.push(path);
     } else {
