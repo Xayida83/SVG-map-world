@@ -18,7 +18,7 @@ body {
     --point-color: #fffef5;
     --point-width: 2px;
     --point-height: 2px;
-    --point-shadow: 0 0 1px rgba(255, 255, 250, 0.9),
+    --point-shadow: 0 0 1px 1px rgba(255, 255, 250, 0.9),
                 0 0 3px 2px rgba(255, 255, 240, 0.25);
     --point-blend-mode: screen;
     
