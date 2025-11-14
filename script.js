@@ -5,7 +5,7 @@
 const CONFIG = {
   pricePerPoint: 50,
   regionPercentage: 60,
-  regionPercentage: 40,
+  regionPercentage: 70,
   updateInterval: 30, // sekunder
   minDistance: 2,     // minsta pixelavstånd mellan punkter
   newDonationDuration: 15, // sekunder
@@ -14,11 +14,11 @@ const CONFIG = {
   useMockData: true,
   minCountryArea: 150, // minsta area (width * height) för att räknas som land (öar filtreras bort)
   circleBoundary: {
-    enabled: true,
+    enabled: false,
     centerX: 0.4,      // 0-1, relativt till kartans bredd (0.5 = mitt)
     centerY: 0.70,     // 0-1, relativt till kartans höjd (0.5 = mitt)
     radius: 0.35,       // 0-1, relativt till kartans minsta dimension
-    showVisual: true   // visa cirkeln på canvas
+    showVisual: false   // visa cirkeln på canvas
   },
   // Kartfärger
   mapColors: {
@@ -41,19 +41,20 @@ const REGION_COUNTRIES = {
   ZA: "South Africa", ZW: "Zimbabwe", BW: "Botswana", NA: "Namibia",
   MZ: "Mozambique", ZM: "Zambia", MW: "Malawi", MG: "Madagascar",
   LS: "Lesotho", SZ: "Eswatini", CD: "Democratic Republic of Congo", AO: "Angola", 
-  TZ: "Tanzania"
+  TZ: "Tanzania",
+  IN: "India"
 };
 
 // Lägg till efter REGION_COUNTRIES
 const LOW_PRIORITY_COUNTRIES = {
   // Lägg till ISO-landskoder för länder som ska prioriteras lägre
-  AU: "Australia", PR: "Puerto Rico", MQ: "Martinique",
-  DM: "Dominica", GP: "Guadeloupe", NO: "Norway", SE: "Sweden"
+  AU: "Australia", PR: "Puerto Rico", MQ: "Martinique", DM: "Dominica", GP: "Guadeloupe",
+  US: "United States", CN: "China", CA: "Canada", NZ: "New Zealand"
 };
 
 // Länder som ska exkluderas helt (får inga prickar)
 const EXCLUDED_COUNTRIES = {
-  RU: "Russia", US: "United States", CN: "China", CA: "Canada", GL: "Greenland", ISR: "Israel"
+  RU: "Russian Federation", ISR: "Israel"
 };
 
 // =======================
@@ -72,7 +73,7 @@ let updateTimer = null;
 // Mock & API helpers
 // =======================
 let MOCK_MODE = CONFIG.useMockData;
-const MOCK_RESPONSE = { amount: 14000 };
+const MOCK_RESPONSE = { amount: 16000 };
 const urls = [{ id: "collected-now", url: CONFIG.apiUrl }];
 
 function getMockDonationData() {
@@ -677,12 +678,6 @@ function getCountryPaths() {
     // Försök hitta ISO-koden från landets namn eller id
     const countryCode = getCountryCode(countryId);
     
-    
-    // Exkludera länder som finns i EXCLUDED_COUNTRIES
-    if (EXCLUDED_COUNTRIES[upperId]) {
-      return;
-    }
-    
     if (countryCode && REGION_COUNTRIES[countryCode]) {
       regionCountries.push(path);
     } else {
@@ -707,9 +702,8 @@ function getCountryPaths() {
       const countryId = getCountryId(path);
       if (!countryId) return;
       
-      const upperId = countryId.toUpperCase().substring(0, 2);
-      // Exkludera även i fallback
-      if (EXCLUDED_COUNTRIES[upperId]) {
+      // Kontrollera om landet är exkluderat även i fallback
+      if (isCountryExcluded(countryId)) {
         return;
       }
       
@@ -724,7 +718,17 @@ function getCountryPaths() {
 }
 
 function getCountryId(path) {
-  // Först försök hitta ISO-kod från id eller data-attribut
+  // Först försök hitta från class (landets namn) - detta är primärt för den nya kartan
+  const className = path.getAttribute("class");
+  if (className) {
+    // Class kan innehålla flera klasser, ta den första (landets namn)
+    const countryName = className.split(/\s+/)[0].trim();
+    if (countryName) {
+      return countryName;
+    }
+  }
+  
+  // Fallback till id eller data-attribut (för äldre kartor)
   const id = path.getAttribute("data-id") ||
              path.getAttribute("id") ||
              path.getAttribute("data-code") ||
@@ -734,15 +738,7 @@ function getCountryId(path) {
     return id;
   }
   
-  // Om ingen id hittades, försök hitta från class (landets namn)
-  const className = path.getAttribute("class");
-  if (className) {
-    // Class kan innehålla flera klasser, ta den första
-    const countryName = className.split(/\s+/)[0];
-    return countryName;
-  }
-  
-  // Fallback till data-name
+  // Sista fallback till data-name
   return path.getAttribute("data-name") || "";
 }
 
@@ -788,21 +784,29 @@ function isCountryExcluded(countryId) {
   const upperId = trimmedId.toUpperCase().substring(0, 2);
   const countryName = trimmedId.toLowerCase();
   
-  // Kontrollera ISO-kod
+  // Kontrollera ISO-kod först
   if (EXCLUDED_COUNTRIES[upperId]) {
     return true;
   }
   
-  // Kontrollera landets namn
+  // Kontrollera landets namn (exakt matchning)
   for (const [code, name] of Object.entries(EXCLUDED_COUNTRIES)) {
-    if (name && name.toLowerCase() === countryName) {
-      return true;
+    if (name) {
+      const nameLower = name.toLowerCase();
+      // Exakt matchning
+      if (nameLower === countryName) {
+        return true;
+      }
+      // Partiell matchning (för att hantera variationer)
+      if (nameLower.includes(countryName) || countryName.includes(nameLower)) {
+        return true;
+      }
     }
-    // Partiell matchning
-    const nameLower = name ? name.toLowerCase() : "";
-    if (nameLower && (nameLower.includes(countryName) || countryName.includes(nameLower))) {
-      return true;
-    }
+  }
+  
+  // Kontrollera även om landet finns i EXCLUDED_COUNTRIES med landets namn som nyckel
+  if (EXCLUDED_COUNTRIES[trimmedId] || EXCLUDED_COUNTRIES[countryName]) {
+    return true;
   }
   
   return false;
@@ -860,14 +864,36 @@ function placePointsInCountries(countryPaths, pointCount, enforceMinimum = false
     const countryId = getCountryId(path);
     if (!countryId) continue;
     
-    const upperId = countryId.toUpperCase().substring(0, 2);
-    
     // Exkludera länder som finns i EXCLUDED_COUNTRIES
-    if (EXCLUDED_COUNTRIES[upperId]) {
+    if (isCountryExcluded(countryId)) {
       continue;
     }
     
-    if (LOW_PRIORITY_COUNTRIES[upperId]) {
+    // Kontrollera om landet är lågprioriterat (använd getCountryCode för att hitta ISO-kod)
+    const countryCode = getCountryCode(countryId);
+    const upperId = countryId.toUpperCase().substring(0, 2);
+    const countryName = countryId.toLowerCase();
+    
+    // Kontrollera både ISO-kod och landets namn i LOW_PRIORITY_COUNTRIES
+    let isLowPriority = false;
+    if (countryCode && LOW_PRIORITY_COUNTRIES[countryCode]) {
+      isLowPriority = true;
+    } else if (LOW_PRIORITY_COUNTRIES[upperId]) {
+      isLowPriority = true;
+    } else {
+      // Kontrollera landets namn
+      for (const [code, name] of Object.entries(LOW_PRIORITY_COUNTRIES)) {
+        if (name) {
+          const nameLower = name.toLowerCase();
+          if (nameLower === countryName || nameLower.includes(countryName) || countryName.includes(nameLower)) {
+            isLowPriority = true;
+            break;
+          }
+        }
+      }
+    }
+    
+    if (isLowPriority) {
       lowPriorityCountries.push(path);
     } else {
       highPriorityCountries.push(path);
