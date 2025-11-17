@@ -18,6 +18,11 @@ const CONFIG = {
     radius: 0.35,       // 0-1, relativt till kartans minsta dimension
     showVisual: true   // visa cirkeln på canvas
   },
+  // Meddelandetext
+  messageText: {
+    enabled: true,     // visa/dölj textrutan med meddelande
+    text: "Vi vill lysa upp världen<br>Hjälp oss att tända ljusen!"
+  },
   // Kartfärger
   mapColors: {
     fill: "#464646",   // Landfärg
@@ -70,7 +75,7 @@ let updateTimer = null;
 // Mock & API helpers
 // =======================
 let MOCK_MODE = CONFIG.useMockData;
-const MOCK_RESPONSE = { amount: 14000 };
+const MOCK_RESPONSE = { amount: 26000 };
 const urls = [{ id: "collected-now", url: CONFIG.apiUrl }];
 
 function getMockDonationData() {
@@ -159,8 +164,10 @@ function initializeElements() {
     ctx = canvas.getContext("2d");
   }
   
-  // Skapa text-element för meddelandet
-  createMessageText();
+  // Skapa text-element för meddelandet om det är aktiverat
+  if (CONFIG.messageText.enabled) {
+    createMessageText();
+  }
 }
 
 function createCanvasElement() {
@@ -203,8 +210,10 @@ function resizeCanvas() {
     }
     drawCircleBoundary();
     
-    // Uppdatera textens position vid resize
-    updateMessagePosition();
+    // Uppdatera textens position vid resize om det är aktiverat
+    if (CONFIG.messageText.enabled) {
+      updateMessagePosition();
+    }
   });
 }
 
@@ -332,10 +341,11 @@ function processMapSVG(svgText) {
       requestAnimationFrame(() => {
         updatePoints();
         drawCircleBoundary();
-        // Uppdatera textens position när kartan har laddats
-        updateMessagePosition();
-        // Visa texten första gången när kartan har laddats
-        showMessageText();
+        // Uppdatera och visa texten om det är aktiverat
+        if (CONFIG.messageText.enabled) {
+          updateMessagePosition();
+          showMessageText();
+        }
       });
     });
   }
@@ -416,7 +426,7 @@ function createMessageText() {
   const messageEl = document.createElement("div");
   messageEl.id = "circleMessage";
   messageEl.className = "circle-message";
-  messageEl.innerHTML = "Vi vill lysa upp världen<br>Hjälp oss att tända ljusen!";
+  messageEl.innerHTML = CONFIG.messageText.text;
   mapWrapper.appendChild(messageEl);
   
   // Uppdatera positionen
@@ -448,6 +458,8 @@ function updateMessagePosition() {
 
 // Funktion för att visa texten med fade-in och dölja den efter updateInterval
 function showMessageText() {
+  if (!CONFIG.messageText.enabled) return;
+  
   const messageEl = document.getElementById("circleMessage");
   if (!messageEl) {
     createMessageText();
@@ -565,24 +577,27 @@ function updatePoints() {
       }
     }
 
-    // Beräkna hur många prickar som BORDE finnas i varje kategori baserat på totalPoints
-    const targetRegionPoints = Math.floor(totalPoints * (CONFIG.regionPercentage / 100));
-    const targetGlobalPoints = totalPoints - targetRegionPoints;
-
+    // Hämta country paths en gång och återanvänd
+    let countryPaths = null;
+    
     if (neededRegularPoints > 0) {
-      const { regionCountries, globalCountries } = getCountryPaths();
+      countryPaths = getCountryPaths();
       
       // Placera prickar sekventiellt baserat på procenten
       // T.ex. med 40%: var 5:e prick ska vara region (2 av 5)
-      placePointsSequentially(regionCountries, globalCountries, neededRegularPoints, true);
+      placePointsSequentially(countryPaths.regionCountries, countryPaths.globalCountries, neededRegularPoints, true);
     }
 
     // För nya prickar, använd samma sekventiella fördelning
-    if (calculatedNewPoints > 0) {
-      const { regionCountries, globalCountries } = getCountryPaths();
+    // Men bara om det inte är första laddningen (previousAmount > 0)
+    if (calculatedNewPoints > 0 && previousAmount > 0) {
+      // Återanvänd countryPaths om det redan är hämtat, annars hämta det
+      if (!countryPaths) {
+        countryPaths = getCountryPaths();
+      }
       
       const newPointsBefore = points.length;
-      placePointsSequentially(regionCountries, globalCountries, calculatedNewPoints, false);
+      placePointsSequentially(countryPaths.regionCountries, countryPaths.globalCountries, calculatedNewPoints, false);
       
       // Markera nya prickar OMEDELBART efter att de skapats
       markNewPoints(newPointsBefore);
@@ -847,13 +862,30 @@ function getCountryId(path) {
          "";
 }
 
+// Hjälpfunktioner för animation durations
+function getRegularAnimationDuration() {
+  return 1.5 + Math.random() * 2;
+}
+
+function getRegularAnimationDelay() {
+  return Math.random() * 3;
+}
+
+function getNewAnimationDuration() {
+  return 0.8 + Math.random() * 0.6;
+}
+
+function getNewAnimationDelay() {
+  return Math.random() * 1;
+}
+
 function markNewPoints(startIndex) {
   const newlyAddedPoints = points.slice(startIndex);
   newlyAddedPoints.forEach(point => {
     point.isNew = true;
     point.createdAt = Date.now();
-    point.animationDuration = 0.8 + Math.random() * 0.6;
-    point.animationDelay = Math.random() * 1;
+    point.animationDuration = getNewAnimationDuration();
+    point.animationDelay = getNewAnimationDelay();
   });
 
   // Omedelbart uppdatera DOM så att nya prickar visas korrekt
@@ -866,8 +898,8 @@ function markNewPoints(startIndex) {
       if (idx !== -1 && points[idx]) {
         points[idx].isNew = false;
         if (!points[idx].animationDuration) {
-          points[idx].animationDuration = 1.5 + Math.random() * 2;
-          points[idx].animationDelay = Math.random() * 3;
+          points[idx].animationDuration = getRegularAnimationDuration();
+          points[idx].animationDelay = getRegularAnimationDelay();
         }
         redrawPoints();
       }
@@ -881,8 +913,8 @@ function updatePointStates() {
     if (point.isNew && (now - point.createdAt) >= CONFIG.newDonationDuration * 1000) {
       point.isNew = false;
       if (!point.animationDuration) {
-        point.animationDuration = 1.5 + Math.random() * 2;
-        point.animationDelay = Math.random() * 3;
+        point.animationDuration = getRegularAnimationDuration();
+        point.animationDelay = getRegularAnimationDelay();
       }
     }
   });
@@ -1123,8 +1155,8 @@ function createPoint(screenX, screenY, svgX, svgY) {
     svgX: svgX,
     svgY: svgY,
     isNew: false,
-    animationDuration: 1.5 + Math.random() * 2,
-    animationDelay: Math.random() * 3
+    animationDuration: getRegularAnimationDuration(),
+    animationDelay: getRegularAnimationDelay()
   };
 }
 
@@ -1237,14 +1269,14 @@ function createPointElement(point, index) {
   el.dataset.pointIndex = index;
 
   if (point.isNew) {
-    const newDuration = 0.8 + Math.random() * 0.6;
-    const newDelay = Math.random() * 1;
+    const newDuration = getNewAnimationDuration();
+    const newDelay = getNewAnimationDelay();
     el.style.animationDuration = newDuration + "s";
     el.style.animationDelay = newDelay + "s";
   } else {
     if (point.animationDuration === undefined) {
-      point.animationDuration = 1.5 + Math.random() * 2;
-      point.animationDelay = Math.random() * 3;
+      point.animationDuration = getRegularAnimationDuration();
+      point.animationDelay = getRegularAnimationDelay();
     }
     el.style.animationDuration = point.animationDuration + "s";
     el.style.animationDelay = point.animationDelay + "s";
