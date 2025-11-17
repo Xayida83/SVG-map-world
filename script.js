@@ -14,10 +14,15 @@ const CONFIG = {
   minCountryArea: 150, // minsta area (width * height) för att räknas som land (öar filtreras bort)
   circleBoundary: {
     enabled: false,
-    centerX: 0.4,      // 0-1, relativt till kartans bredd (0.5 = mitt)
-    centerY: 0.70,     // 0-1, relativt till kartans höjd (0.5 = mitt)
-    radius: 0.35,       // 0-1, relativt till kartans minsta dimension
+    centerX: 0.5,      // 0-1, relativt till kartans bredd (0.5 = mitt)
+    centerY: 0.5,     // 0-1, relativt till kartans höjd (0.5 = mitt)
+    radius: 0.5,       // 0-1, relativt till kartans minsta dimension
     showVisual: false   // visa cirkeln på canvas
+  },
+  // Meddelandetext
+  messageText: {
+    enabled: true,     // visa/dölj textrutan med meddelande
+    text: "Vi vill lysa upp världen<br>Hjälp oss att tända ljusen!"
   },
   // Kartfärger
   mapColors: {
@@ -154,6 +159,11 @@ function initializeElements() {
     canvas = document.createElement("canvas");
     ctx = canvas.getContext("2d");
   }
+  
+  // Skapa text-element för meddelandet om det är aktiverat
+  if (CONFIG.messageText.enabled) {
+    createMessageText();
+  }
 }
 
 function createCanvasElement() {
@@ -188,6 +198,11 @@ function resizeCanvas() {
     redrawPoints();
   }
   drawCircleBoundary();
+  
+  // Uppdatera textens position vid resize om det är aktiverat
+  if (CONFIG.messageText.enabled) {
+    updateMessagePosition();
+  }
 }
 
 // =======================
@@ -291,6 +306,12 @@ function processMapSVG(svgText) {
     setTimeout(() => {
       updatePoints();
       drawCircleBoundary();
+      
+      // Uppdatera och visa texten om det är aktiverat
+      if (CONFIG.messageText.enabled) {
+        updateMessagePosition();
+        showMessageText();
+      }
     }, 200);
   }
 }
@@ -352,6 +373,80 @@ function fetchDonationData() {
 function startAutoUpdate() {
   if (updateTimer) clearInterval(updateTimer);
   updateTimer = setInterval(() => { fetchDonationData(); }, CONFIG.updateInterval * 1000);
+}
+
+// Funktion för att skapa text-elementet
+function createMessageText() {
+  const mapWrapper = mapContainer?.parentElement;
+  if (!mapWrapper) return;
+  
+  // Ta bort befintligt meddelande om det finns
+  const existingMessage = document.getElementById("circleMessage");
+  if (existingMessage) {
+    existingMessage.remove();
+  }
+  
+  const messageEl = document.createElement("div");
+  messageEl.id = "circleMessage";
+  messageEl.className = "circle-message";
+  messageEl.innerHTML = CONFIG.messageText.text;
+  mapWrapper.appendChild(messageEl);
+  
+  // Uppdatera positionen
+  updateMessagePosition();
+}
+
+// Funktion för att uppdatera textens position (mitt på cirkeln)
+function updateMessagePosition() {
+  const messageEl = document.getElementById("circleMessage");
+  if (!messageEl || !mapContainer) return;
+  
+  const circleData = getCircleBoundaryData();
+  if (!circleData) return;
+  
+  const containerRect = mapContainer.getBoundingClientRect();
+  const wrapperRect = mapContainer.parentElement.getBoundingClientRect();
+  
+  // Beräkna absolut position relativt till wrapper
+  const left = containerRect.left - wrapperRect.left + circleData.centerX;
+  const top = containerRect.top - wrapperRect.top + circleData.centerY;
+  
+  messageEl.style.left = left + "px";
+  messageEl.style.top = top + "px";
+  
+  // Sätt max-width baserat på cirkelns radie (80% av diametern för att passa bra)
+  const maxWidth = circleData.radius * 2 * 0.8;
+  messageEl.style.maxWidth = maxWidth + "px";
+}
+
+// Funktion för att visa texten med fade-in och dölja den efter updateInterval
+function showMessageText() {
+  if (!CONFIG.messageText.enabled) return;
+  
+  const messageEl = document.getElementById("circleMessage");
+  if (!messageEl) {
+    createMessageText();
+    return;
+  }
+  
+  // Uppdatera positionen
+  updateMessagePosition();
+  
+  // Visa texten med fade-in
+  messageEl.classList.remove("fade-out");
+  messageEl.classList.add("fade-in");
+  messageEl.style.display = "block";
+  
+  // Dölj texten efter updateInterval sekunder med fade-out
+  setTimeout(() => {
+    messageEl.classList.remove("fade-in");
+    messageEl.classList.add("fade-out");
+    
+    // Ta bort elementet efter animationen är klar
+    setTimeout(() => {
+      messageEl.style.display = "none";
+    }, 1000); // Matcha fade-out animation duration
+  }, CONFIG.updateInterval * 1000);
 }
 
 function addTestDonation(amount) {
