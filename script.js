@@ -4,7 +4,6 @@
 // =======================
 const CONFIG = {
   pricePerPoint: 50,
-  regionPercentage: 60,
   regionPercentage: 70,
   updateInterval: 30, // sekunder
   minDistance: 2,     // minsta pixelavstånd mellan punkter
@@ -73,7 +72,7 @@ let updateTimer = null;
 // Mock & API helpers
 // =======================
 let MOCK_MODE = CONFIG.useMockData;
-const MOCK_RESPONSE = { amount: 16000 };
+const MOCK_RESPONSE = { amount: 26000 };
 const urls = [{ id: "collected-now", url: CONFIG.apiUrl }];
 
 function getMockDonationData() {
@@ -146,7 +145,6 @@ function initializeElements() {
   if (canvas) {
     ctx = canvas.getContext("2d");
     resizeCanvas();
-    window.addEventListener("resize", resizeCanvas);
     
     if (CONFIG.circleBoundary.enabled && CONFIG.circleBoundary.showVisual) {
       canvas.style.opacity = "1";
@@ -202,9 +200,7 @@ function loadMap() {
     return;
   }
 
-  const localSvgPath = "https://raw.githubusercontent.com/Xayida83/SVG-map-world/refs/heads/map-nr-two/world%20(1).svg";
-
-  fetch(localSvgPath)
+  fetch(CONFIG.mapUrl)
     .then(response => {
       if (response.ok) return response.text();
       throw new Error("Local SVG file not found");
@@ -447,10 +443,6 @@ function updatePoints() {
     }
   }
 
-  // Beräkna hur många prickar som BORDE finnas i varje kategori baserat på totalPoints
-  const targetRegionPoints = Math.floor(totalPoints * (CONFIG.regionPercentage / 100));
-  const targetGlobalPoints = totalPoints - targetRegionPoints;
-
   if (neededRegularPoints > 0) {
     const { regionCountries, globalCountries } = getCountryPaths();
     
@@ -460,7 +452,8 @@ function updatePoints() {
   }
 
   // För nya prickar, använd samma sekventiella fördelning
-  if (calculatedNewPoints > 0) {
+  // Men bara om det inte är första laddningen (previousAmount > 0)
+  if (calculatedNewPoints > 0 && previousAmount > 0) {
     const { regionCountries, globalCountries } = getCountryPaths();
     
     const newPointsBefore = points.length;
@@ -649,33 +642,42 @@ function placePointsSequentially(regionCountries, globalCountries, pointCount, e
   });
 }
 
+// Hjälpfunktion för att kontrollera om ett land ska inkluderas
+function shouldIncludeCountry(path) {
+  try {
+    const bbox = path.getBBox();
+    const area = bbox.width * bbox.height;
+    if (area < CONFIG.minCountryArea) {
+      return false; // Hoppa över små paths (öar)
+    }
+    if (bbox.width === 0 || bbox.height === 0) {
+      return false;
+    }
+  } catch {
+    return false; // Om vi inte kan få bounding box, hoppa över denna path
+  }
+
+  const countryId = getCountryId(path);
+  if (!countryId) return false;
+
+  // Kontrollera om landet är exkluderat
+  if (isCountryExcluded(countryId)) {
+    return false; // Hoppa över exkluderade länder
+  }
+
+  return true;
+}
+
 function getCountryPaths() {
   const countryPaths = mapSvg.querySelectorAll("path");
   const regionCountries = [];
   const globalCountries = [];
 
   countryPaths.forEach(path => {
-    // Kontrollera om path är för liten (ö)
-    try {
-      const bbox = path.getBBox();
-      const area = bbox.width * bbox.height;
-      if (area < CONFIG.minCountryArea) {
-        return; // Hoppa över små paths (öar)
-      }
-    } catch {
-      // Om vi inte kan få bounding box, hoppa över denna path
-      return;
-    }
-
-    const countryId = getCountryId(path);
-    if (!countryId) return;
-
-    // Kontrollera om landet är exkluderat
-    if (isCountryExcluded(countryId)) {
-      return; // Hoppa över exkluderade länder
-    }
+    if (!shouldIncludeCountry(path)) return;
 
     // Försök hitta ISO-koden från landets namn eller id
+    const countryId = getCountryId(path);
     const countryCode = getCountryCode(countryId);
     
     if (countryCode && REGION_COUNTRIES[countryCode]) {
@@ -688,29 +690,8 @@ function getCountryPaths() {
   // Fallback om inga länder hittades
   if (regionCountries.length === 0 && globalCountries.length === 0) {
     countryPaths.forEach(path => {
-      // Kontrollera även här om path är för liten
-      try {
-        const bbox = path.getBBox();
-        const area = bbox.width * bbox.height;
-        if (area < CONFIG.minCountryArea) {
-          return;
-        }
-      } catch {
-        return;
-      }
-
-      const countryId = getCountryId(path);
-      if (!countryId) return;
-      
-      // Kontrollera om landet är exkluderat även i fallback
-      if (isCountryExcluded(countryId)) {
-        return;
-      }
-      
-      const bbox = path.getBBox();
-      if (bbox.width > 0 && bbox.height > 0) {
-        globalCountries.push(path);
-      }
+      if (!shouldIncludeCountry(path)) return;
+      globalCountries.push(path);
     });
   }
 
@@ -817,8 +798,8 @@ function markNewPoints(startIndex) {
   newlyAddedPoints.forEach(point => {
     point.isNew = true;
     point.createdAt = Date.now();
-    point.animationDuration = 0.8 + Math.random() * 0.6;
-    point.animationDelay = Math.random() * 1;
+    point.animationDuration = getNewAnimationDuration();
+    point.animationDelay = getNewAnimationDelay();
   });
 
   // Omedelbart uppdatera DOM så att nya prickar visas korrekt
@@ -831,8 +812,8 @@ function markNewPoints(startIndex) {
       if (idx !== -1 && points[idx]) {
         points[idx].isNew = false;
         if (!points[idx].animationDuration) {
-          points[idx].animationDuration = 1.5 + Math.random() * 2;
-          points[idx].animationDelay = Math.random() * 3;
+          points[idx].animationDuration = getRegularAnimationDuration();
+          points[idx].animationDelay = getRegularAnimationDelay();
         }
         redrawPoints();
       }
@@ -846,235 +827,13 @@ function updatePointStates() {
     if (point.isNew && (now - point.createdAt) >= CONFIG.newDonationDuration * 1000) {
       point.isNew = false;
       if (!point.animationDuration) {
-        point.animationDuration = 1.5 + Math.random() * 2;
-        point.animationDelay = Math.random() * 3;
+        point.animationDuration = getRegularAnimationDuration();
+        point.animationDelay = getRegularAnimationDelay();
       }
     }
   });
 }
 
-function placePointsInCountries(countryPaths, pointCount, enforceMinimum = false) {
-  if (!countryPaths || countryPaths.length === 0 || pointCount <= 0) return;
-
-  // Separera länder i högre och lägre prioritet
-  const highPriorityCountries = [];
-  const lowPriorityCountries = [];
-  
-  for (const path of countryPaths) {
-    const countryId = getCountryId(path);
-    if (!countryId) continue;
-    
-    // Exkludera länder som finns i EXCLUDED_COUNTRIES
-    if (isCountryExcluded(countryId)) {
-      continue;
-    }
-    
-    // Kontrollera om landet är lågprioriterat (använd getCountryCode för att hitta ISO-kod)
-    const countryCode = getCountryCode(countryId);
-    const upperId = countryId.toUpperCase().substring(0, 2);
-    const countryName = countryId.toLowerCase();
-    
-    // Kontrollera både ISO-kod och landets namn i LOW_PRIORITY_COUNTRIES
-    let isLowPriority = false;
-    if (countryCode && LOW_PRIORITY_COUNTRIES[countryCode]) {
-      isLowPriority = true;
-    } else if (LOW_PRIORITY_COUNTRIES[upperId]) {
-      isLowPriority = true;
-    } else {
-      // Kontrollera landets namn
-      for (const [code, name] of Object.entries(LOW_PRIORITY_COUNTRIES)) {
-        if (name) {
-          const nameLower = name.toLowerCase();
-          if (nameLower === countryName || nameLower.includes(countryName) || countryName.includes(nameLower)) {
-            isLowPriority = true;
-            break;
-          }
-        }
-      }
-    }
-    
-    if (isLowPriority) {
-      lowPriorityCountries.push(path);
-    } else {
-      highPriorityCountries.push(path);
-    }
-  }
-
-  // Beräkna yta för varje land och total yta
-  const countryAreas = [];
-  let totalArea = 0;
-
-  // Lägg till högre prioriterade länder först
-  for (const path of highPriorityCountries) {
-    try {
-      const bbox = path.getBBox();
-      const area = bbox.width * bbox.height;
-      if (area > 0) {
-        countryAreas.push({ path, area, priority: 'high' });
-        totalArea += area;
-      }
-    } catch {
-      countryAreas.push({ path, area: 1, priority: 'high' });
-      totalArea += 1;
-    }
-  }
-
-  // Lägg till lägre prioriterade länder sist
-  for (const path of lowPriorityCountries) {
-    try {
-      const bbox = path.getBBox();
-      const area = bbox.width * bbox.height;
-      if (area > 0) {
-        countryAreas.push({ path, area, priority: 'low' });
-        totalArea += area;
-      }
-    } catch {
-      countryAreas.push({ path, area: 1, priority: 'low' });
-      totalArea += 1;
-    }
-  }
-
-  if (totalArea === 0) {
-    // Placera först i högre prioriterade länder
-    const highPriorityPoints = Math.min(pointCount, highPriorityCountries.length);
-    let placedCount = 0;
-    
-    for (const path of highPriorityCountries) {
-      if (placedCount >= highPriorityPoints) break;
-      const point = findPointOnLand(path, 500);
-      if (point) {
-        points.push(point);
-        placedCount++;
-      }
-    }
-    
-    // Om det finns fler prickar kvar, placera i lägre prioriterade länder
-    if (placedCount < pointCount) {
-      for (const path of lowPriorityCountries) {
-        if (placedCount >= pointCount) break;
-        const point = findPointOnLand(path, 500);
-        if (point) {
-          points.push(point);
-          placedCount++;
-        }
-      }
-    }
-    return;
-  }
-
-  // För nya prickar (enforceMinimum = false), använd enklare fördelning
-  if (!enforceMinimum && pointCount <= countryAreas.length) {
-    // Sortera: högre prioritet först, sedan storlek
-    const sortedCountries = [...countryAreas].sort((a, b) => {
-      // Högre prioritet först
-      if (a.priority === 'high' && b.priority === 'low') return -1;
-      if (a.priority === 'low' && b.priority === 'high') return 1;
-      // Sedan storlek (störst först)
-      return b.area - a.area;
-    });
-    
-    let placedCount = 0;
-    
-    for (const { path } of sortedCountries) {
-      if (placedCount >= pointCount) break;
-      const point = findPointOnLand(path, 500);
-      if (point) {
-        points.push(point);
-        placedCount++;
-      }
-    }
-    return;
-  }
-
-  // Minimum-logik för initial påfyllning
-  const minPointsPerCountry = enforceMinimum ? 1 : 0;
-  const totalMinPoints = countryAreas.length * minPointsPerCountry;
-  
-  const adjustedPointCount = enforceMinimum && pointCount >= totalMinPoints 
-    ? Math.max(pointCount, totalMinPoints)
-    : pointCount;
-  
-  let remainingPoints = adjustedPointCount;
-  const countryPointTargets = [];
-
-  if (enforceMinimum && adjustedPointCount >= totalMinPoints) {
-    // Ge minimum prickar till alla länder, men högre prioriterade först
-    for (const { path, area, priority } of countryAreas) {
-      countryPointTargets.push({ 
-        path, 
-        area, 
-        priority,
-        minPoints: minPointsPerCountry,
-        extraPoints: 0,
-        totalTarget: minPointsPerCountry
-      });
-      remainingPoints -= minPointsPerCountry;
-    }
-  } else {
-    for (const { path, area, priority } of countryAreas) {
-      countryPointTargets.push({ 
-        path, 
-        area, 
-        priority,
-        minPoints: 0,
-        extraPoints: 0,
-        totalTarget: 0
-      });
-    }
-  }
-
-  // Fördela resterande prickar proportionellt, men ge mer till högre prioriterade länder
-  if (remainingPoints > 0) {
-    // Beräkna total area för högre och lägre prioriterade länder separat
-    const highPriorityArea = countryAreas
-      .filter(c => c.priority === 'high')
-      .reduce((sum, c) => sum + c.area, 0);
-    const lowPriorityArea = countryAreas
-      .filter(c => c.priority === 'low')
-      .reduce((sum, c) => sum + c.area, 0);
-    
-    // Fördela 80% till högre prioriterade, 20% till lägre (eller proportionellt baserat på area)
-    const highPriorityPoints = Math.floor(remainingPoints * 0.8);
-    const lowPriorityPoints = remainingPoints - highPriorityPoints;
-    
-    for (const country of countryPointTargets) {
-      if (country.priority === 'high' && highPriorityArea > 0) {
-        const proportion = country.area / highPriorityArea;
-        country.extraPoints = Math.round(highPriorityPoints * proportion);
-      } else if (country.priority === 'low' && lowPriorityArea > 0) {
-        const proportion = country.area / lowPriorityArea;
-        country.extraPoints = Math.round(lowPriorityPoints * proportion);
-      }
-      country.totalTarget = country.minPoints + country.extraPoints;
-    }
-  }
-
-  // Placera prickar - högre prioriterade länder först
-  const sortedTargets = [...countryPointTargets].sort((a, b) => {
-    if (a.priority === 'high' && b.priority === 'low') return -1;
-    if (a.priority === 'low' && b.priority === 'high') return 1;
-    return 0;
-  });
-
-  for (const { path, totalTarget } of sortedTargets) {
-    if (totalTarget === 0) continue;
-    
-    let placedForCountry = 0;
-    let attempts = 0;
-    const maxAttemptsForCountry = totalTarget * 20;
-
-    while (placedForCountry < totalTarget && attempts < maxAttemptsForCountry) {
-      const pointAttempts = Math.min(500, 100 + (attempts * 2));
-      const point = findPointOnLand(path, pointAttempts);
-      
-      if (point) {
-        points.push(point);
-        placedForCountry++;
-      }
-      attempts++;
-    }
-  }
-}
 
 function findPointOnLand(path, maxAttempts = 100) {
   if (!mapSvg) return null;
@@ -1103,6 +862,23 @@ function findPointOnLand(path, maxAttempts = 100) {
   return null;
 }
 
+// Hjälpfunktioner för animation durations
+function getRegularAnimationDuration() {
+  return 1.5 + Math.random() * 2;
+}
+
+function getRegularAnimationDelay() {
+  return Math.random() * 3;
+}
+
+function getNewAnimationDuration() {
+  return 0.8 + Math.random() * 0.6;
+}
+
+function getNewAnimationDelay() {
+  return Math.random() * 1;
+}
+
 function createPoint(screenX, screenY, svgX, svgY) {
   return {
     x: screenX,
@@ -1110,8 +886,8 @@ function createPoint(screenX, screenY, svgX, svgY) {
     svgX: svgX,
     svgY: svgY,
     isNew: false,
-    animationDuration: 1.5 + Math.random() * 2,
-    animationDelay: Math.random() * 3
+    animationDuration: getRegularAnimationDuration(),
+    animationDelay: getRegularAnimationDelay()
   };
 }
 
@@ -1218,14 +994,14 @@ function createPointElement(point, index) {
   el.dataset.pointIndex = index;
 
   if (point.isNew) {
-    const newDuration = 0.8 + Math.random() * 0.6;
-    const newDelay = Math.random() * 1;
+    const newDuration = getNewAnimationDuration();
+    const newDelay = getNewAnimationDelay();
     el.style.animationDuration = newDuration + "s";
     el.style.animationDelay = newDelay + "s";
   } else {
     if (point.animationDuration === undefined) {
-      point.animationDuration = 1.5 + Math.random() * 2;
-      point.animationDelay = Math.random() * 3;
+      point.animationDuration = getRegularAnimationDuration();
+      point.animationDelay = getRegularAnimationDelay();
     }
     el.style.animationDuration = point.animationDuration + "s";
     el.style.animationDelay = point.animationDelay + "s";
