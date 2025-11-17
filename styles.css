@@ -159,3 +159,53 @@ body {
     content: '';
     display: block;
 }
+
+/* =======================
+   Meddelandetext
+   ======================= */
+.circle-message {
+    position: absolute;
+    z-index: 20;
+    text-align: center;
+    color: #fff;
+    font-size: 24px;
+    font-weight: 600;
+    line-height: 1.4;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.8),
+                 0 0 20px rgba(255, 255, 255, 0.3);
+    pointer-events: none;
+    transform: translate(-50%, -50%);
+    opacity: 0;
+    display: none;
+}
+
+.circle-message.fade-in {
+    animation: fadeIn 0.8s ease-in forwards;
+    display: block;
+}
+
+.circle-message.fade-out {
+    animation: fadeOut 1s ease-out forwards;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
+    to {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.9);
+    }
+}
