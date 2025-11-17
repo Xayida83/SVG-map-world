@@ -21,7 +21,7 @@ const CONFIG = {
   },
   // Meddelandetext
   messageText: {
-    enabled: true,     // visa/dölj textrutan med meddelande
+    enabled: false,     // visa/dölj textrutan med meddelande
     text: "Vi vill lysa upp världen<br>Hjälp oss att tända ljusen!"
   },
   // Kartfärger
