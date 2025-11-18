@@ -13,8 +13,8 @@ const CONFIG = {
   useMockData: true,
   circleBoundary: {
     enabled: true,
-    centerX: 0.45,      // 0-1, relativt till kartans bredd (0.5 = mitt)
-    centerY: 0.68,     // 0-1, relativt till kartans höjd (0.5 = mitt)
+    centerX: 0.44,     // 0-1, relativt till kartans höjd (0.5 = mitt)
+    centerY: 0.65,     // 0-1, relativt till kartans bredd (0.5 = mitt)
     radius: 0.43,       // 0-1, relativt till kartans minsta dimension
     showVisual: true   // visa cirkeln på canvas
   },
