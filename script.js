@@ -56,7 +56,7 @@ const LOW_PRIORITY_COUNTRIES = {
 
 // Länder som ska exkluderas helt (får inga prickar)
 const EXCLUDED_COUNTRIES = {
-  RU: "Russia", US: "United States", CN: "China", CA: "Canada", GL: "Greenland", ISR: "Israel", IRN: "Iran"
+  RU: "Russia", US: "United States", CN: "China", CA: "Canada", GL: "Greenland", ISR: "Israel", IRN: "Iran", IL: "Israel"
 };
 
 // =======================
