@@ -13,14 +13,14 @@ const CONFIG = {
   useMockData: true,
   circleBoundary: {
     enabled: true,
-    centerX: 0.4,      // 0-1, relativt till kartans bredd (0.5 = mitt)
-    centerY: 0.70,     // 0-1, relativt till kartans höjd (0.5 = mitt)
-    radius: 0.35,       // 0-1, relativt till kartans minsta dimension
+    centerX: 0.45,      // 0-1, relativt till kartans bredd (0.5 = mitt)
+    centerY: 0.68,     // 0-1, relativt till kartans höjd (0.5 = mitt)
+    radius: 0.43,       // 0-1, relativt till kartans minsta dimension
     showVisual: true   // visa cirkeln på canvas
   },
   // Meddelandetext
   messageText: {
-    enabled: true,     // visa/dölj textrutan med meddelande
+    enabled: false,     // visa/dölj textrutan med meddelande
     text: "Vi vill lysa upp världen<br>Hjälp oss att tända ljusen!"
   },
   // Kartfärger
@@ -438,21 +438,20 @@ function updateMessagePosition() {
   const messageEl = document.getElementById("circleMessage");
   if (!messageEl || !mapContainer) return;
   
-  const circleData = getCircleBoundaryData();
-  if (!circleData) return;
+  const wrapperRect = mapContainer.parentElement?.getBoundingClientRect();
+  if (!wrapperRect) return;
   
+  // Använd procentuella värden direkt från CONFIG för responsiv positionering
+  // centerX och centerY är redan i procent (0-1), konvertera till procent för CSS
+  messageEl.style.left = (CONFIG.circleBoundary.centerX * 100) + "%";
+  messageEl.style.top = (CONFIG.circleBoundary.centerY * 100) + "%";
+  
+  // Sätt max-width baserat på cirkelns radie i procent
+  // radius är relativt till minsta dimensionen, så vi använder en approximation
   const containerRect = mapContainer.getBoundingClientRect();
-  const wrapperRect = mapContainer.parentElement.getBoundingClientRect();
-  
-  // Beräkna absolut position relativt till wrapper
-  const left = containerRect.left - wrapperRect.left + circleData.centerX;
-  const top = containerRect.top - wrapperRect.top + circleData.centerY;
-  
-  messageEl.style.left = left + "px";
-  messageEl.style.top = top + "px";
-  
-  // Sätt max-width baserat på cirkelns radie (80% av diametern för att passa bra)
-  const maxWidth = circleData.radius * 2 * 0.8;
+  const minDimension = Math.min(containerRect.width, containerRect.height);
+  const radiusPx = minDimension * CONFIG.circleBoundary.radius;
+  const maxWidth = radiusPx * 2 * 0.8;
   messageEl.style.maxWidth = maxWidth + "px";
 }
 
